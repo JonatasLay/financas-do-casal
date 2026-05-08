@@ -108,7 +108,7 @@ export default function LoginPage() {
     'Confirmar MFA'
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#08080F]">
+    <div className="min-h-screen flex items-center justify-center px-4 py-6 md:p-6 relative overflow-hidden bg-[#08080F]">
       <div
         className="absolute inset-0 bg-cover bg-center"
         style={{ backgroundImage: "url('/login/login-bg-mobile.png')" }}
@@ -117,108 +117,121 @@ export default function LoginPage() {
         className="absolute inset-0 hidden md:block bg-cover bg-center"
         style={{ backgroundImage: "url('/login/login-bg-desktop.png')" }}
       />
-      <div className="absolute inset-0 bg-black/35 md:bg-black/30" />
+      <div className="absolute inset-0 bg-black/18 md:bg-black/16" />
 
-      <div className="w-full max-w-sm relative z-10">
-        <div className="rounded-3xl p-5 sm:p-6 shadow-float backdrop-blur-2xl" style={{ background: 'rgba(13,13,26,0.82)', border: '1px solid rgba(255,255,255,0.16)', boxShadow: '0 24px 80px rgba(0,0,0,0.38)' }}>
-          <div className="text-center mb-5">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-float overflow-hidden bg-white/10 border border-white/20">
-            <img src="/icons/icon-512.png" alt="Financas do Casal" className="w-full h-full object-cover" />
+      <div className="w-full max-w-[620px] relative z-10 mt-[31vh] md:mt-36">
+        <div
+          className="rounded-3xl p-4 md:p-5 shadow-float backdrop-blur-2xl"
+          style={{
+            background: 'rgba(13,13,26,0.78)',
+            border: '1px solid rgba(255,255,255,0.16)',
+            boxShadow: '0 22px 70px rgba(0,0,0,0.36)',
+          }}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-[190px_1fr] gap-4 md:gap-5 items-center">
+            <div className="flex md:flex-col items-center md:items-start gap-3 md:gap-2 text-left">
+              <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center shadow-float overflow-hidden bg-white/10 border border-white/20 flex-shrink-0">
+                <img src="/icons/icon-512.png" alt="Financas do Casal" className="w-full h-full object-cover" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl md:text-2xl font-bold text-white leading-tight">Financas do Casal</h1>
+                <p className="text-white/75 text-xs md:text-sm mt-0.5">{title}</p>
+              </div>
             </div>
-            <h1 className="text-2xl font-bold text-white">Financas do Casal</h1>
-            <p className="text-white/75 text-sm mt-1">{title}</p>
-          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'invite' && (
-              <div>
-                <label className="text-xs font-medium text-white/70 mb-1 block">Seu nome</label>
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="Jonatas ou Thuany"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  required
-                />
-              </div>
-            )}
+            <div>
+              <form onSubmit={handleSubmit} className="space-y-3">
+                {mode === 'invite' && (
+                  <div>
+                    <label className="text-xs font-medium text-white/70 mb-1 block">Seu nome</label>
+                    <input
+                      className="input h-11"
+                      type="text"
+                      placeholder="Jonatas ou Thuany"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
 
-            {mode !== 'mfa' ? (
-              <>
-                <div>
-                  <label className="text-xs font-medium text-white/70 mb-1 block">Email</label>
-                  <input
-                    className="input"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    required
-                  />
+                {mode !== 'mfa' ? (
+                  <>
+                    <div>
+                      <label className="text-xs font-medium text-white/70 mb-1 block">Email</label>
+                      <input
+                        className="input h-11"
+                        type="email"
+                        placeholder="seu@email.com"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-white/70 mb-1 block">Senha</label>
+                      <input
+                        className="input h-11"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        minLength={6}
+                        required
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label className="text-xs font-medium text-white/70 mb-1 block">Codigo do autenticador</label>
+                    <input
+                      className="input h-11 text-center tracking-widest"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="000000"
+                      value={mfaCode}
+                      onChange={e => setMfaCode(e.target.value)}
+                      minLength={6}
+                      required
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn-primary w-full h-11 flex items-center justify-center gap-2 mt-1"
+                >
+                  {loading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Aguarde...
+                    </>
+                  ) : (
+                    mode === 'login' ? 'Entrar' : mode === 'invite' ? 'Criar conta' : 'Verificar codigo'
+                  )}
+                </button>
+              </form>
+
+              {mode === 'invite' && (
+                <div className="mt-3 pt-3 border-t border-white/10 text-center">
+                  <button
+                    onClick={() => setMode('login')}
+                    className="text-sm font-medium hover:underline"
+                    style={{ color: '#F1F5F9' }}
+                  >
+                    Ja tenho conta
+                  </button>
                 </div>
-
-                <div>
-                  <label className="text-xs font-medium text-white/70 mb-1 block">Senha</label>
-                  <input
-                    className="input"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    minLength={6}
-                    required
-                  />
-                </div>
-              </>
-            ) : (
-              <div>
-                <label className="text-xs font-medium text-white/70 mb-1 block">Codigo do autenticador</label>
-                <input
-                  className="input text-center tracking-widest"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  placeholder="000000"
-                  value={mfaCode}
-                  onChange={e => setMfaCode(e.target.value)}
-                  minLength={6}
-                  required
-                />
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full flex items-center justify-center gap-2 mt-2"
-            >
-              {loading ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Aguarde...
-                </>
-              ) : (
-                mode === 'login' ? 'Entrar' : mode === 'invite' ? 'Criar conta' : 'Verificar codigo'
               )}
-            </button>
-          </form>
 
-          {mode === 'invite' && (
-            <div className="mt-4 pt-4 border-t border-white/10 text-center">
-              <button
-                onClick={() => setMode('login')}
-                className="text-sm font-medium hover:underline"
-                style={{ color: '#F1F5F9' }}
-              >
-                Ja tenho conta
-              </button>
+              <p className="text-center text-xs text-white/55 mt-3">
+                Cadastro somente por convite do admin.
+              </p>
             </div>
-          )}
-
-          <p className="text-center text-xs text-white/55 mt-5">
-            Cadastro somente por convite do admin.
-          </p>
+          </div>
         </div>
       </div>
     </div>
