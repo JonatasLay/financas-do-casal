@@ -93,7 +93,6 @@ export function AddTransactionModal({ open, onClose, onSuccess }: Props) {
 
     setSaving(true)
     try {
-      const d = new Date(date + 'T12:00:00')
       const { error } = await supabase.from('transactions').insert({
         household_id: profile.household_id,
         created_by: profile.id,
@@ -106,8 +105,6 @@ export function AddTransactionModal({ open, onClose, onSuccess }: Props) {
         status,
         notes: notes.trim() || null,
         is_recurring: isRecurring,
-        month: String(d.getMonth() + 1).padStart(2, '0'),
-        year: d.getFullYear(),
       })
       if (error) throw error
       toast.success('Lançamento salvo! 🎉')
