@@ -117,18 +117,18 @@ export default function LoginPage() {
         className="absolute inset-0 hidden md:block bg-cover bg-center"
         style={{ backgroundImage: "url('/login/login-bg-desktop.png')" }}
       />
-      <div className="absolute inset-0 bg-black/25 md:bg-black/20" />
+      <div className="absolute inset-0 bg-black/35 md:bg-black/30" />
 
       <div className="w-full max-w-sm relative z-10">
-        <div className="text-center mb-8">
-          <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-float overflow-hidden bg-white/10 backdrop-blur-md border border-white/20">
+        <div className="rounded-3xl p-5 sm:p-6 shadow-float backdrop-blur-2xl" style={{ background: 'rgba(13,13,26,0.82)', border: '1px solid rgba(255,255,255,0.16)', boxShadow: '0 24px 80px rgba(0,0,0,0.38)' }}>
+          <div className="text-center mb-5">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-float overflow-hidden bg-white/10 border border-white/20">
             <img src="/icons/icon-512.png" alt="Financas do Casal" className="w-full h-full object-cover" />
+            </div>
+            <h1 className="text-2xl font-bold text-white">Financas do Casal</h1>
+            <p className="text-white/75 text-sm mt-1">{title}</p>
           </div>
-          <h1 className="text-2xl font-bold text-white drop-shadow">Financas do Casal</h1>
-          <p className="text-white/75 text-sm mt-1">{title}</p>
-        </div>
 
-        <div className="rounded-2xl p-5 shadow-float backdrop-blur-xl" style={{ background: 'rgba(13,13,26,0.72)', border: '1px solid rgba(255,255,255,0.14)' }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'invite' && (
               <div>
@@ -215,11 +215,11 @@ export default function LoginPage() {
               </button>
             </div>
           )}
-        </div>
 
-        <p className="text-center text-xs text-white/65 mt-6 drop-shadow">
-          Cadastro somente por convite do admin.
-        </p>
+          <p className="text-center text-xs text-white/55 mt-5">
+            Cadastro somente por convite do admin.
+          </p>
+        </div>
       </div>
     </div>
   )
