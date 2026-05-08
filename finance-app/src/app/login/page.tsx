@@ -109,6 +109,16 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-6 md:p-6 relative overflow-hidden bg-[#08080F]">
+      <picture className="absolute inset-0 flex items-center justify-center scale-105 blur-xl opacity-80" aria-hidden="true">
+        <source media="(min-width: 1920px)" srcSet="/login/login-bg-wide.png" />
+        <source media="(min-width: 768px)" srcSet="/login/login-bg-desktop.png" />
+        <source media="(max-aspect-ratio: 1/2)" srcSet="/login/login-bg-mobile-tall.png" />
+        <img
+          src="/login/login-bg-mobile.png"
+          alt=""
+          className="w-full h-full object-cover object-center select-none"
+        />
+      </picture>
       <picture className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
         <source media="(min-width: 1920px)" srcSet="/login/login-bg-wide.png" />
         <source media="(min-width: 768px)" srcSet="/login/login-bg-desktop.png" />
