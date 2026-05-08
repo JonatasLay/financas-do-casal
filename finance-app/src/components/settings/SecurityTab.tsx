@@ -8,7 +8,7 @@ import { KeyRound, ShieldCheck, ShieldAlert, Trash2 } from 'lucide-react'
 const textStyle = { color: '#F1F5F9' } as const
 const labelStyle = { color: '#64748B' } as const
 
-type TotpFactor = { id: string; friendly_name?: string; status: string; created_at?: string }
+type TotpFactor = { id: string; friendly_name?: string; factor_type?: string; status: string; created_at?: string }
 
 export function SecurityTab() {
   const supabase = createClient()
@@ -28,7 +28,7 @@ export function SecurityTab() {
       supabase.auth.mfa.listFactors(),
       supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
     ])
-    if (!factorRes.error) setFactors(factorRes.data.totp as TotpFactor[])
+    if (!factorRes.error) setFactors((factorRes.data.all || []) as TotpFactor[])
     if (!aalRes.error) setAal(aalRes.data || {})
     setLoading(false)
   }, [])
@@ -40,7 +40,7 @@ export function SecurityTab() {
     setCode('')
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: 'totp',
-      friendlyName: 'Financas do Casal',
+      friendlyName: `Financas do Casal ${new Date().toISOString().slice(0, 19)}`,
       issuer: 'Financas do Casal',
     })
     if (error) {
@@ -165,7 +165,9 @@ export function SecurityTab() {
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
               <div className="flex-1">
                 <p className="text-sm font-medium" style={textStyle}>{factor.friendly_name || 'Autenticador'}</p>
-                <p className="text-[10px]" style={{ color: factor.status === 'verified' ? '#34D399' : '#FBBF24' }}>{factor.status}</p>
+                <p className="text-[10px]" style={{ color: factor.status === 'verified' ? '#34D399' : '#FBBF24' }}>
+                  {factor.factor_type || 'totp'} · {factor.status}
+                </p>
               </div>
               <button onClick={() => removeFactor(factor.id)}
                 className="p-2 rounded-lg transition-colors"
