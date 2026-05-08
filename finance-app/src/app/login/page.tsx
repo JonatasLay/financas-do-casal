@@ -110,11 +110,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-6 md:p-6 relative overflow-hidden bg-[#08080F]">
       <div
-        className="absolute inset-0 bg-cover bg-center"
+        className="absolute inset-0 bg-contain bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/login/login-bg-mobile.png')" }}
       />
       <div
-        className="absolute inset-0 hidden md:block bg-cover bg-center"
+        className="absolute inset-0 hidden md:block bg-contain bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/login/login-bg-desktop.png')" }}
       />
       <div className="absolute inset-0 bg-black/18 md:bg-black/16" />
@@ -128,13 +128,13 @@ export default function LoginPage() {
             boxShadow: '0 22px 70px rgba(0,0,0,0.36)',
           }}
         >
-          <div className="grid grid-cols-1 md:grid-cols-[190px_1fr] gap-4 md:gap-5 items-center">
-            <div className="flex md:flex-col items-center md:items-start gap-3 md:gap-2 text-left">
+          <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 md:gap-5 items-center">
+            <div className="flex md:flex-col items-center justify-center gap-3 md:gap-2 text-center">
               <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center shadow-float overflow-hidden bg-white/10 border border-white/20 flex-shrink-0">
                 <img src="/icons/icon-512.png" alt="Financas do Casal" className="w-full h-full object-cover" />
               </div>
               <div className="min-w-0">
-                <h1 className="text-xl md:text-2xl font-bold text-white leading-tight">Financas do Casal</h1>
+                <h1 className="text-xl md:text-[22px] font-bold text-white leading-tight">Financas do Casal</h1>
                 <p className="text-white/75 text-xs md:text-sm mt-0.5">{title}</p>
               </div>
             </div>
