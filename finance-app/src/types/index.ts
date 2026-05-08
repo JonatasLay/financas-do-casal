@@ -10,7 +10,7 @@ export interface Household { id: string; name: string; created_at: string }
 
 export interface Profile {
   id: string; household_id: string; name: string
-  avatar_color: string; avatar_emoji: string; avatar_url?: string | null; created_at: string
+  email?: string | null; role?: 'admin' | 'member'; avatar_color: string; avatar_emoji: string; avatar_url?: string | null; created_at: string
 }
 
 export interface Category {
@@ -47,6 +47,12 @@ export interface GoalContribution {
 export interface Budget {
   id: string; household_id: string; category_id: string
   month: number; year: number; amount: number; category?: Category
+}
+
+export interface HouseholdInvite {
+  id: string; household_id: string; email: string; role: 'admin' | 'member'
+  status: 'pending' | 'accepted' | 'revoked'; invited_by: string | null
+  accepted_by: string | null; created_at: string; accepted_at: string | null
 }
 
 export interface Savings {

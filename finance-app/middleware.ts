@@ -30,6 +30,12 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
+  let needsMfa = false
+
+  if (user) {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    needsMfa = aal?.nextLevel === 'aal2' && aal.currentLevel !== 'aal2'
+  }
 
   if (!user && pathname !== '/login') {
     const loginUrl = request.nextUrl.clone()
@@ -37,7 +43,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  if (user && pathname === '/login') {
+  if (user && needsMfa && pathname !== '/login') {
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/login'
+    return NextResponse.redirect(loginUrl)
+  }
+
+  if (user && !needsMfa && pathname === '/login') {
     const homeUrl = request.nextUrl.clone()
     homeUrl.pathname = '/'
     return NextResponse.redirect(homeUrl)

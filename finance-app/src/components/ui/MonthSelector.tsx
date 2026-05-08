@@ -1,16 +1,18 @@
 'use client'
 
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { format, addMonths, subMonths, isFuture, startOfMonth } from 'date-fns'
+import { format, addMonths, subMonths, differenceInCalendarMonths, startOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 interface MonthSelectorProps {
   value: Date
   onChange: (date: Date) => void
+  maxFutureMonths?: number
 }
 
-export function MonthSelector({ value, onChange }: MonthSelectorProps) {
-  const canGoForward = !isFuture(startOfMonth(addMonths(value, 1)))
+export function MonthSelector({ value, onChange, maxFutureMonths = 12 }: MonthSelectorProps) {
+  const nextMonth = startOfMonth(addMonths(value, 1))
+  const canGoForward = differenceInCalendarMonths(nextMonth, startOfMonth(new Date())) <= maxFutureMonths
 
   const btnStyle = {
     background: 'rgba(255,255,255,0.05)',

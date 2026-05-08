@@ -13,12 +13,14 @@ import { DailyTip } from '@/components/dashboard/DailyTip'
 import { OnlineIndicator } from '@/components/dashboard/OnlineIndicator'
 import { BudgetsMini } from '@/components/dashboard/BudgetsMini'
 import { CreditCardSummary } from '@/components/dashboard/CreditCardSummary'
+import { FuturePreview } from '@/components/dashboard/FuturePreview'
 import { DollarRate } from '@/components/dashboard/DollarRate'
 import { MonthSelector } from '@/components/ui/MonthSelector'
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal'
+import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
 import { RefreshCw, TrendingUp, PiggyBank, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import type { Transaction, Goal, Category, Budget, Bank } from '@/types'
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -142,6 +144,8 @@ export default function DashboardPage() {
 
   const [currentDate, setCurrentDate] = useState(new Date())
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [nextMonthTransactions, setNextMonthTransactions] = useState<Transaction[]>([])
+  const [creditInvoiceTransactions, setCreditInvoiceTransactions] = useState<Transaction[]>([])
   const [goals, setGoals]       = useState<Goal[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [budgets, setBudgets]   = useState<Budget[]>([])
@@ -181,8 +185,12 @@ export default function DashboardPage() {
     // Previous month for delta
     const prevStart = format(startOfMonth(subMonths(currentDate, 1)), 'yyyy-MM-dd')
     const prevEnd   = format(endOfMonth(subMonths(currentDate, 1)), 'yyyy-MM-dd')
+    const nextStart = format(startOfMonth(addMonths(currentDate, 1)), 'yyyy-MM-dd')
+    const nextEnd   = format(endOfMonth(addMonths(currentDate, 1)), 'yyyy-MM-dd')
+    const creditStart = format(startOfMonth(subMonths(currentDate, 1)), 'yyyy-MM-dd')
+    const creditEnd   = format(endOfMonth(currentDate), 'yyyy-MM-dd')
 
-    const [txRes, goalsRes, catsRes, budgetsRes, banksRes, prevTxRes] = await Promise.all([
+    const [txRes, goalsRes, catsRes, budgetsRes, banksRes, prevTxRes, nextTxRes, creditTxRes] = await Promise.all([
       supabase.from('transactions')
         .select('*, category:categories(*), bank:banks(*), profile:profiles(name, avatar_color, avatar_emoji)')
         .eq('household_id', hid).gte('date', start).lte('date', end).order('date', { ascending: false }),
@@ -192,9 +200,17 @@ export default function DashboardPage() {
       supabase.from('banks').select('*').eq('household_id', hid),
       supabase.from('transactions').select('amount, type, status')
         .eq('household_id', hid).eq('status', 'realizado').gte('date', prevStart).lte('date', prevEnd),
+      supabase.from('transactions')
+        .select('*, category:categories(*), bank:banks(*), profile:profiles(name, avatar_color, avatar_emoji)')
+        .eq('household_id', hid).gte('date', nextStart).lte('date', nextEnd).order('date', { ascending: true }),
+      supabase.from('transactions')
+        .select('*, category:categories(*), bank:banks(*), profile:profiles(name, avatar_color, avatar_emoji)')
+        .eq('household_id', hid).gte('date', creditStart).lte('date', creditEnd).order('date', { ascending: false }),
     ])
 
     setTransactions(txRes.data || [])
+    setNextMonthTransactions((nextTxRes.data || []) as Transaction[])
+    setCreditInvoiceTransactions((creditTxRes.data || []) as Transaction[])
     setGoals(goalsRes.data || [])
     setCategories(catsRes.data || [])
     setBudgets(budgetsRes.data || [])
@@ -233,15 +249,27 @@ export default function DashboardPage() {
   }, [fetchData])
 
   // Derived
+  const bankById = new Map(banks.map(bank => [bank.id, bank]))
+  const isCreditTx = (tx: Transaction) => bankById.get(tx.bank_id || '')?.type === 'credito'
+  const creditInvoiceDueThisMonth = creditInvoiceTransactions.filter(tx => {
+    const bank = bankById.get(tx.bank_id || '')
+    if (!bank || bank.type !== 'credito' || tx.type === 'receita' || tx.status !== 'realizado') return false
+    return isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day), currentDate)
+  })
+  const financialTransactions = [
+    ...transactions.filter(tx => !isCreditTx(tx)),
+    ...creditInvoiceDueThisMonth,
+  ]
+
   const income   = transactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const expenses = transactions.filter(t => t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const pending  = transactions.filter(t => t.status === 'pendente').reduce((s, t) => s + Number(t.amount), 0)
+  const expenses = financialTransactions.filter(t => t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const pending  = transactions.filter(t => t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
   const balance  = income - expenses
 
   const byCategory = categories
     .map(cat => ({
       category: cat,
-      total: transactions.filter(t => t.category_id === cat.id && t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0),
+      total: financialTransactions.filter(t => t.category_id === cat.id && t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0),
     }))
     .filter(x => x.total > 0)
     .sort((a, b) => b.total - a.total)
@@ -316,6 +344,17 @@ export default function DashboardPage() {
             <SummaryCards income={income} expenses={expenses} pending={pending} loading={loading} />
           </motion.div>
 
+          {/* ── Row 4.5: Future preview ── */}
+          <motion.div {...fadeUp(0.135)}>
+            <FuturePreview
+              targetMonth={addMonths(currentDate, 1)}
+              transactions={nextMonthTransactions}
+              creditTransactions={creditInvoiceTransactions}
+              banks={banks}
+              loading={loading}
+            />
+          </motion.div>
+
           {/* ── Row 5: Patrimônio (savings + investments) ── */}
           {profile?.household_id && (
             <motion.div {...fadeUp(0.15)}>
@@ -336,12 +375,12 @@ export default function DashboardPage() {
 
           {/* ── Row 8: Budgets ── */}
           <motion.div {...fadeUp(0.24)}>
-            <BudgetsMini budgets={budgets} transactions={transactions} loading={loading} />
+            <BudgetsMini budgets={budgets} transactions={financialTransactions} loading={loading} />
           </motion.div>
 
           {/* ── Row 9: Credit cards ── */}
           <motion.div {...fadeUp(0.27)}>
-            <CreditCardSummary banks={banks} transactions={transactions} loading={loading} />
+            <CreditCardSummary banks={banks} transactions={creditInvoiceTransactions} loading={loading} selectedMonth={currentDate} />
           </motion.div>
 
           {/* ── Row 10: Goals ── */}

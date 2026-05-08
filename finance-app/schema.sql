@@ -21,11 +21,30 @@ CREATE TABLE households (
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   household_id UUID REFERENCES households(id),
+  email TEXT,
   name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
   avatar_color TEXT DEFAULT '#6366F1',
   avatar_emoji TEXT DEFAULT '👤',
+  avatar_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- HOUSEHOLD INVITES (cadastro apenas por convite)
+-- ============================================================
+CREATE TABLE household_invites (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE NOT NULL,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'revoked')),
+  invited_by UUID REFERENCES profiles(id),
+  accepted_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  accepted_at TIMESTAMPTZ,
+  UNIQUE(household_id, email)
 );
 
 -- ============================================================
@@ -53,6 +72,8 @@ CREATE TABLE banks (
   color TEXT DEFAULT '#6366F1',
   icon TEXT DEFAULT '🏦',
   is_default BOOLEAN DEFAULT FALSE,
+  limit_amount DECIMAL(12,2),
+  due_day INTEGER CHECK (due_day BETWEEN 1 AND 31),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -145,6 +166,7 @@ CREATE TABLE ai_conversations (
 
 ALTER TABLE households ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE household_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE banks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
@@ -159,12 +181,33 @@ RETURNS UUID AS $$
   SELECT household_id FROM profiles WHERE id = auth.uid()
 $$ LANGUAGE SQL SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION auth_is_household_admin()
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid()
+      AND household_id IS NOT NULL
+      AND role = 'admin'
+  )
+$$ LANGUAGE SQL SECURITY DEFINER;
+
 -- POLICIES: cada tabela só acessível pelo próprio household
 CREATE POLICY "household_access" ON households
   FOR ALL USING (id = auth_household_id());
 
-CREATE POLICY "household_access" ON profiles
-  FOR ALL USING (household_id = auth_household_id());
+CREATE POLICY "profiles_select_household" ON profiles
+  FOR SELECT USING (household_id = auth_household_id());
+
+CREATE POLICY "profiles_self_update" ON profiles
+  FOR UPDATE USING (id = auth.uid()) WITH CHECK (id = auth.uid());
+
+CREATE POLICY "profiles_admin_update" ON profiles
+  FOR UPDATE USING (household_id = auth_household_id() AND auth_is_household_admin())
+  WITH CHECK (household_id = auth_household_id());
+
+CREATE POLICY "invites_admin_access" ON household_invites
+  FOR ALL USING (household_id = auth_household_id() AND auth_is_household_admin())
+  WITH CHECK (household_id = auth_household_id() AND auth_is_household_admin());
 
 CREATE POLICY "household_access" ON categories
   FOR ALL USING (household_id = auth_household_id());
@@ -192,14 +235,84 @@ CREATE POLICY "household_access" ON ai_conversations
 -- ============================================================
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  invite household_invites%ROWTYPE;
+  new_household_id UUID;
+  new_role TEXT := 'member';
 BEGIN
-  INSERT INTO profiles (id, name, avatar_color)
+  SELECT * INTO invite
+  FROM household_invites
+  WHERE lower(email) = lower(NEW.email)
+    AND status = 'pending'
+  ORDER BY created_at ASC
+  LIMIT 1;
+
+  IF invite.id IS NULL THEN
+    IF (SELECT COUNT(*) FROM profiles) = 0 THEN
+      INSERT INTO households (name) VALUES ('Nossa Família') RETURNING id INTO new_household_id;
+      new_role := 'admin';
+    ELSE
+      RAISE EXCEPTION 'Cadastro permitido apenas por convite.';
+    END IF;
+  ELSE
+    new_household_id := invite.household_id;
+    new_role := invite.role;
+  END IF;
+
+  INSERT INTO profiles (id, household_id, email, name, role, avatar_color)
   VALUES (
     NEW.id,
+    new_household_id,
+    NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    new_role,
     CASE WHEN (SELECT COUNT(*) FROM profiles) % 2 = 0 THEN '#6366F1' ELSE '#EC4899' END
   );
+
+  IF invite.id IS NOT NULL THEN
+    UPDATE household_invites
+    SET status = 'accepted', accepted_by = NEW.id, accepted_at = NOW()
+    WHERE id = invite.id;
+  END IF;
+
   RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION protect_profile_admin_fields()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.role IS DISTINCT FROM OLD.role
+    OR NEW.household_id IS DISTINCT FROM OLD.household_id
+    OR NEW.email IS DISTINCT FROM OLD.email THEN
+    IF NOT auth_is_household_admin() THEN
+      RAISE EXCEPTION 'Apenas administradores podem alterar permissões de usuários.';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION admin_attach_existing_user(target_email TEXT, target_role TEXT DEFAULT 'member')
+RETURNS BOOLEAN AS $$
+DECLARE
+  hid UUID;
+BEGIN
+  IF NOT auth_is_household_admin() THEN
+    RAISE EXCEPTION 'Apenas administradores podem vincular usuários.';
+  END IF;
+
+  SELECT household_id INTO hid FROM profiles WHERE id = auth.uid();
+  IF hid IS NULL THEN
+    RAISE EXCEPTION 'Household do admin não encontrado.';
+  END IF;
+
+  UPDATE profiles
+  SET household_id = hid,
+      role = CASE WHEN target_role = 'admin' THEN 'admin' ELSE 'member' END
+  WHERE lower(email) = lower(target_email);
+
+  RETURN FOUND;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -218,6 +331,7 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON transactions FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON goals FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER protect_profile_admin_fields BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION protect_profile_admin_fields();
 
 -- ============================================================
 -- ÍNDICES para performance
@@ -227,3 +341,4 @@ CREATE INDEX idx_transactions_date ON transactions(date DESC);
 CREATE INDEX idx_transactions_year_month ON transactions(year, month);
 CREATE INDEX idx_transactions_category ON transactions(category_id);
 CREATE INDEX idx_goals_household ON goals(household_id);
+CREATE INDEX idx_invites_household_status ON household_invites(household_id, status);

@@ -5,11 +5,13 @@ import { createClient } from '@/lib/supabase/client'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { NumericFormat } from 'react-number-format'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { UserAdminTab } from '@/components/settings/UserAdminTab'
+import { SecurityTab } from '@/components/settings/SecurityTab'
 import { toast } from 'sonner'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Trash2, Plus, Save, AlertTriangle, ChevronDown, ChevronUp, Camera, Pencil, X, Eye, EyeOff, Users, KeyRound, ShieldCheck } from 'lucide-react'
-import type { Category, Bank, Budget } from '@/types'
+import type { Category, Bank, Budget, Profile } from '@/types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -930,10 +932,12 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
-type Tab = 'profile' | 'categories' | 'banks' | 'budgets'
+type Tab = 'profile' | 'users' | 'security' | 'categories' | 'banks' | 'budgets'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'profile',    label: 'Perfil',     icon: '👤' },
+  { id: 'users',      label: 'Usuários',    icon: '🛡️' },
+  { id: 'security',   label: 'Segurança',   icon: '🔐' },
   { id: 'categories', label: 'Categorias', icon: '🏷️' },
   { id: 'banks',      label: 'Bancos',     icon: '🏦' },
   { id: 'budgets',    label: 'Orçamentos', icon: '📊' },
@@ -995,6 +999,8 @@ export default function SettingsPage() {
         ) : (
           <div className="animate-fade-in">
             {activeTab === 'profile'    && <ProfileTab profile={profile} onSaved={fetchAll} />}
+            {activeTab === 'users'      && <UserAdminTab profile={profile as Profile | null} />}
+            {activeTab === 'security'   && <SecurityTab />}
             {activeTab === 'categories' && <CategoriesTab categories={categories} householdId={profile?.household_id || ''} onRefresh={fetchAll} />}
             {activeTab === 'banks'      && <BanksTab banks={banks} householdId={profile?.household_id || ''} onRefresh={fetchAll} />}
             {activeTab === 'budgets'    && <BudgetsTab categories={categories} householdId={profile?.household_id || ''} />}

@@ -2,11 +2,13 @@
 
 import { CreditCard, AlertCircle } from 'lucide-react'
 import type { Bank, Transaction } from '@/types'
+import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
 
 interface Props {
   banks: Bank[]
   transactions: Transaction[]
   loading?: boolean
+  selectedMonth?: Date
 }
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -31,18 +33,21 @@ function CardSkeleton() {
   )
 }
 
-export function CreditCardSummary({ banks, transactions, loading }: Props) {
+export function CreditCardSummary({ banks, transactions, loading, selectedMonth = new Date() }: Props) {
   const creditCards = banks.filter(b => b.type === 'credito')
 
   if (!loading && creditCards.length === 0) return null
 
-  const getSpent = (bankId: string) =>
+  const getSpent = (card: Bank) =>
     transactions
-      .filter(t => t.bank_id === bankId && t.type !== 'receita' && t.status === 'realizado')
+      .filter(t => {
+        if (t.bank_id !== card.id || t.type === 'receita' || t.status !== 'realizado') return false
+        return isDateInMonth(getCreditCardPaymentDate(t.date, card.due_day), selectedMonth)
+      })
       .reduce((s, t) => s + Number(t.amount), 0)
 
   const totalLimit = creditCards.reduce((s, c) => s + (Number(c.limit_amount) || 0), 0)
-  const totalSpent = creditCards.reduce((s, c) => s + getSpent(c.id), 0)
+  const totalSpent = creditCards.reduce((s, c) => s + getSpent(c), 0)
   const usagePct   = totalLimit > 0 ? Math.min(100, (totalSpent / totalLimit) * 100) : 0
 
   const usageColor = usagePct >= 90 ? '#F87171' : usagePct >= 70 ? '#FBBF24' : '#818CF8'
@@ -89,7 +94,7 @@ export function CreditCardSummary({ banks, transactions, loading }: Props) {
         {loading
           ? [1, 2].map(i => <CardSkeleton key={i} />)
           : creditCards.map(card => {
-              const spent   = getSpent(card.id)
+              const spent   = getSpent(card)
               const limit   = Number(card.limit_amount) || 0
               const cardPct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0
               const color   = card.color || '#818CF8'
