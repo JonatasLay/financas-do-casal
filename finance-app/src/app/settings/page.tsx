@@ -176,24 +176,39 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
 
 function CategoriesTab({ categories, householdId, onRefresh }: { categories: Category[]; householdId: string; onRefresh: () => void }) {
   const supabase = createClient()
-  const [showForm, setShowForm]       = useState(false)
-  const [name, setName]               = useState('')
-  const [type, setType]               = useState<'receita' | 'despesa' | 'ambos'>('despesa')
-  const [icon, setIcon]               = useState('🛒')
-  const [color, setColor]             = useState('#818CF8')
-  const [saving, setSaving]           = useState(false)
+  const [showForm, setShowForm]             = useState(false)
+  const [editingCat, setEditingCat]         = useState<Category | null>(null)
+  const [name, setName]                     = useState('')
+  const [type, setType]                     = useState<'receita' | 'despesa' | 'ambos'>('despesa')
+  const [icon, setIcon]                     = useState('🛒')
+  const [color, setColor]                   = useState('#818CF8')
+  const [saving, setSaving]                 = useState(false)
   const [showIconPicker, setShowIconPicker] = useState(false)
   const [confirmDelete, setConfirmDelete]   = useState<Category | null>(null)
 
-  const resetForm = () => { setName(''); setType('despesa'); setIcon('🛒'); setColor('#818CF8'); setShowForm(false); setShowIconPicker(false) }
+  const resetForm = () => {
+    setName(''); setType('despesa'); setIcon('🛒'); setColor('#818CF8')
+    setShowForm(false); setShowIconPicker(false); setEditingCat(null)
+  }
 
-  const addCategory = async () => {
+  const startEdit = (cat: Category) => {
+    setEditingCat(cat); setName(cat.name); setType(cat.type); setIcon(cat.icon); setColor(cat.color)
+    setShowForm(true); setShowIconPicker(false)
+  }
+
+  const saveCategory = async () => {
     if (!name.trim()) return void toast.error('Digite um nome')
     setSaving(true)
-    const { error } = await supabase.from('categories').insert({ household_id: householdId, name: name.trim(), type, icon, color, is_default: false })
+    if (editingCat) {
+      const { error } = await supabase.from('categories').update({ name: name.trim(), type, icon, color }).eq('id', editingCat.id)
+      if (error) toast.error('Erro ao atualizar')
+      else { toast.success('Categoria atualizada!'); resetForm(); onRefresh() }
+    } else {
+      const { error } = await supabase.from('categories').insert({ household_id: householdId, name: name.trim(), type, icon, color, is_default: false })
+      if (error) toast.error('Erro ao adicionar')
+      else { toast.success('Categoria adicionada!'); resetForm(); onRefresh() }
+    }
     setSaving(false)
-    if (error) return void toast.error('Erro ao adicionar')
-    toast.success('Categoria adicionada!'); resetForm(); onRefresh()
   }
 
   const doDelete = async () => {
@@ -226,22 +241,31 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
                   {cat.is_default && <p className="text-[10px]" style={{ color: '#334155' }}>padrão</p>}
                 </div>
                 <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                {!cat.is_default && (
-                  <button onClick={() => setConfirmDelete(cat)}
-                    className="p-1.5 rounded-lg transition-colors flex-shrink-0"
-                    style={{ color: '#475569' }}
-                    onMouseEnter={e => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
-                    onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}>
-                    <Trash2 className="w-3.5 h-3.5" />
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => startEdit(cat)}
+                    className="p-1.5 rounded-lg transition-colors"
+                    style={{ color: '#818CF8' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.1)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                    <Pencil className="w-3.5 h-3.5" />
                   </button>
-                )}
+                  {!cat.is_default && (
+                    <button onClick={() => setConfirmDelete(cat)}
+                      className="p-1.5 rounded-lg transition-colors"
+                      style={{ color: '#475569' }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
+                      onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </div>
       ))}
 
-      <button onClick={() => setShowForm(v => !v)}
+      <button onClick={() => { resetForm(); setShowForm(v => !v) }}
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm transition-all duration-150"
         style={{ border: '2px dashed rgba(129,140,248,0.25)', color: showForm ? '#F87171' : '#818CF8' }}
         onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(129,140,248,0.5)')}
@@ -252,7 +276,9 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
 
       {showForm && (
         <div className="card space-y-4 animate-fade-in" style={{ border: '1px solid rgba(129,140,248,0.2)' }}>
-          <p className="font-semibold text-sm" style={textStyle}>Nova categoria</p>
+          <p className="font-semibold text-sm" style={textStyle}>
+            {editingCat ? `Editar: ${editingCat.name}` : 'Nova categoria'}
+          </p>
           <div className="flex gap-2">
             <div className="relative">
               <button onClick={() => setShowIconPicker(v => !v)}
@@ -296,8 +322,8 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
               ))}
             </div>
           </div>
-          <button onClick={addCategory} disabled={saving} className="btn-primary w-full text-sm">
-            {saving ? 'Salvando...' : 'Adicionar'}
+          <button onClick={saveCategory} disabled={saving} className="btn-primary w-full text-sm">
+            {saving ? 'Salvando...' : editingCat ? 'Salvar alterações' : 'Adicionar'}
           </button>
         </div>
       )}
@@ -520,6 +546,7 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
   const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({})
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [confirmClear, setConfirmClear] = useState<Category | null>(null)
 
   const currentMonth = currentDate.getMonth() + 1
   const currentYear  = currentDate.getFullYear()
@@ -542,6 +569,19 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
   }, [householdId, currentMonth, currentYear])
 
   useEffect(() => { loadData() }, [loadData])
+
+  const clearBudget = async () => {
+    if (!confirmClear) return
+    await supabase.from('budgets')
+      .delete()
+      .eq('household_id', householdId)
+      .eq('category_id', confirmClear.id)
+      .eq('month', currentMonth)
+      .eq('year', currentYear)
+    setBudgetValues(prev => { const next = { ...prev }; delete next[confirmClear.id]; return next })
+    toast.success('Orçamento removido')
+    setConfirmClear(null)
+  }
 
   const saveAll = async () => {
     setSaving(true)
@@ -607,7 +647,7 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
                     </div>
                     {budget > 0 && <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>R$ {fmt(spent)} de R$ {fmt(budget)} usados</p>}
                   </div>
-                  <div className="flex-shrink-0">
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
                     <NumericFormat
                       value={budgetValues[cat.id] || ''}
                       onValueChange={v => setBudgetValues(prev => ({ ...prev, [cat.id]: v.value }))}
@@ -616,6 +656,17 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
                       className="w-28 text-right text-sm font-semibold rounded-xl px-2.5 py-1.5 focus:outline-none transition-all"
                       style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#F1F5F9' }}
                     />
+                    {budgetValues[cat.id] && Number(budgetValues[cat.id].replace(',', '.')) > 0 && (
+                      <button
+                        onClick={() => setConfirmClear(cat)}
+                        className="p-1.5 rounded-lg transition-colors flex-shrink-0"
+                        style={{ color: '#475569' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}
+                        title="Remover orçamento">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
                 {budget > 0 && (
@@ -635,6 +686,15 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
           {saving ? 'Salvando...' : 'Salvar orçamentos'}
         </button>
       )}
+
+      <ConfirmDialog
+        open={!!confirmClear}
+        title="Remover orçamento?"
+        message={confirmClear ? `O limite mensal de "${confirmClear.name}" será removido.` : ''}
+        confirmLabel="Remover"
+        onConfirm={clearBudget}
+        onCancel={() => setConfirmClear(null)}
+      />
     </div>
   )
 }
