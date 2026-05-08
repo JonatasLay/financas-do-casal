@@ -51,6 +51,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     const init = async () => {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('invite') === '1') {
+        setMode('invite')
+        const invitedEmail = params.get('email')
+        if (invitedEmail) setEmail(invitedEmail)
+      }
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
@@ -97,25 +104,35 @@ export default function LoginPage() {
 
   const title =
     mode === 'login' ? 'Bem-vindo(a) de volta!' :
-    mode === 'invite' ? 'Criar conta com convite' :
+    mode === 'invite' ? 'Criar conta convidada' :
     'Confirmar MFA'
 
   return (
-    <div className="min-h-screen bg-gradient-app flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#08080F]">
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: "url('/login/login-bg-mobile.png')" }}
+      />
+      <div
+        className="absolute inset-0 hidden md:block bg-cover bg-center"
+        style={{ backgroundImage: "url('/login/login-bg-desktop.png')" }}
+      />
+      <div className="absolute inset-0 bg-black/25 md:bg-black/20" />
+
+      <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-card rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-float">
-            <span className="text-3xl">💜</span>
+          <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-float overflow-hidden bg-white/10 backdrop-blur-md border border-white/20">
+            <img src="/icons/icon-512.png" alt="Financas do Casal" className="w-full h-full object-cover" />
           </div>
-          <h1 className="text-2xl font-bold text-gradient">Finanças do Casal</h1>
-          <p className="text-gray-500 text-sm mt-1">{title}</p>
+          <h1 className="text-2xl font-bold text-white drop-shadow">Financas do Casal</h1>
+          <p className="text-white/75 text-sm mt-1">{title}</p>
         </div>
 
-        <div className="card shadow-float">
+        <div className="rounded-2xl p-5 shadow-float backdrop-blur-xl" style={{ background: 'rgba(13,13,26,0.72)', border: '1px solid rgba(255,255,255,0.14)' }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'invite' && (
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Seu nome</label>
+                <label className="text-xs font-medium text-white/70 mb-1 block">Seu nome</label>
                 <input
                   className="input"
                   type="text"
@@ -130,7 +147,7 @@ export default function LoginPage() {
             {mode !== 'mfa' ? (
               <>
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Email</label>
+                  <label className="text-xs font-medium text-white/70 mb-1 block">Email</label>
                   <input
                     className="input"
                     type="email"
@@ -142,7 +159,7 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1 block">Senha</label>
+                  <label className="text-xs font-medium text-white/70 mb-1 block">Senha</label>
                   <input
                     className="input"
                     type="password"
@@ -156,7 +173,7 @@ export default function LoginPage() {
               </>
             ) : (
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Codigo do autenticador</label>
+                <label className="text-xs font-medium text-white/70 mb-1 block">Codigo do autenticador</label>
                 <input
                   className="input text-center tracking-widest"
                   type="text"
@@ -182,28 +199,26 @@ export default function LoginPage() {
                   Aguarde...
                 </>
               ) : (
-                mode === 'login' ? 'Entrar' : mode === 'invite' ? 'Criar com convite' : 'Verificar codigo'
+                mode === 'login' ? 'Entrar' : mode === 'invite' ? 'Criar conta' : 'Verificar codigo'
               )}
             </button>
           </form>
 
-          {mode !== 'mfa' && (
-            <div className="mt-4 pt-4 border-t border-gray-100 text-center">
-              <p className="text-sm text-gray-500">
-                {mode === 'login' ? 'Recebeu um convite?' : 'Ja tem conta?'}{' '}
-                <button
-                  onClick={() => setMode(mode === 'login' ? 'invite' : 'login')}
-                  className="text-primary-600 font-medium hover:underline"
-                >
-                  {mode === 'login' ? 'Criar conta convidada' : 'Entrar'}
-                </button>
-              </p>
+          {mode === 'invite' && (
+            <div className="mt-4 pt-4 border-t border-white/10 text-center">
+              <button
+                onClick={() => setMode('login')}
+                className="text-sm font-medium hover:underline"
+                style={{ color: '#F1F5F9' }}
+              >
+                Ja tenho conta
+              </button>
             </div>
           )}
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Cadastro protegido por convite e MFA opcional.
+        <p className="text-center text-xs text-white/65 mt-6 drop-shadow">
+          Cadastro somente por convite do admin.
         </p>
       </div>
     </div>

@@ -13,6 +13,11 @@ function brDate(value: string) {
   return new Date(value).toLocaleDateString('pt-BR')
 }
 
+function inviteUrl(email: string) {
+  if (typeof window === 'undefined') return `/login?invite=1&email=${encodeURIComponent(email)}`
+  return `${window.location.origin}/login?invite=1&email=${encodeURIComponent(email)}`
+}
+
 export function UserAdminTab({ profile }: { profile: Profile | null }) {
   const supabase = createClient()
   const [members, setMembers] = useState<Profile[]>([])
@@ -105,6 +110,12 @@ export function UserAdminTab({ profile }: { profile: Profile | null }) {
     if (error) return void toast.error(error.message || 'Erro ao revogar convite')
     toast.success('Convite revogado')
     load()
+  }
+
+  const copyInviteLink = async (email: string) => {
+    const link = inviteUrl(email)
+    await navigator.clipboard.writeText(link)
+    toast.success('Link de convite copiado')
   }
 
   if (!isAdmin) {
@@ -218,12 +229,19 @@ export function UserAdminTab({ profile }: { profile: Profile | null }) {
                   </div>
                 </div>
                 {inviteItem.status === 'pending' && (
-                  <button onClick={() => revokeInvite(inviteItem.id)}
-                    className="p-2 rounded-lg transition-colors"
-                    style={{ color: '#F87171', background: 'rgba(248,113,113,0.08)' }}
-                    title="Revogar convite">
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => copyInviteLink(inviteItem.email)}
+                      className="px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                      style={{ color: '#22D3EE', background: 'rgba(34,211,238,0.08)' }}>
+                      Copiar link
+                    </button>
+                    <button onClick={() => revokeInvite(inviteItem.id)}
+                      className="p-2 rounded-lg transition-colors"
+                      style={{ color: '#F87171', background: 'rgba(248,113,113,0.08)' }}
+                      title="Revogar convite">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
