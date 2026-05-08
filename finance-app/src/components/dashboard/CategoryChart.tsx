@@ -14,9 +14,16 @@ const CustomTooltip = ({ active, payload }: any) => {
   if (!active || !payload?.length) return null
   const d = payload[0].payload
   return (
-    <div className="bg-white border border-gray-100 rounded-xl shadow-card p-3 text-xs">
-      <p className="font-semibold">{d.category.icon} {d.category.name}</p>
-      <p className="text-gray-600">{fmt(d.total)}</p>
+    <div style={{
+      background: 'rgba(17,17,36,0.95)',
+      border: '1px solid rgba(129,140,248,0.3)',
+      borderRadius: '12px',
+      padding: '10px 14px',
+      fontSize: '12px',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+    }}>
+      <p style={{ fontWeight: 600, color: '#F1F5F9' }}>{d.category.icon} {d.category.name}</p>
+      <p style={{ color: '#94A3B8' }}>{fmt(d.total)}</p>
     </div>
   )
 }
@@ -29,10 +36,10 @@ export function CategoryChart({ data, loading }: CategoryChartProps) {
 
   return (
     <div className="card">
-      <h2 className="font-semibold text-gray-900 mb-4">Por categoria</h2>
+      <h2 className="font-semibold mb-4" style={{ color: '#F1F5F9' }}>Por categoria</h2>
       {top5.length === 0 ? (
         <div className="h-40 flex items-center justify-center">
-          <p className="text-sm text-gray-400">Nenhum gasto ainda este mês</p>
+          <p className="text-sm" style={{ color: '#475569' }}>Nenhum gasto ainda este mês</p>
         </div>
       ) : (
         <div className="flex gap-3">
@@ -50,8 +57,8 @@ export function CategoryChart({ data, loading }: CategoryChartProps) {
             {top5.map((d, i) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.category.color }} />
-                <span className="text-xs text-gray-600 flex-1 truncate">{d.category.icon} {d.category.name}</span>
-                <span className="text-xs font-medium text-gray-900">
+                <span className="text-xs flex-1 truncate" style={{ color: '#94A3B8' }}>{d.category.icon} {d.category.name}</span>
+                <span className="text-xs font-medium" style={{ color: '#F1F5F9' }}>
                   {total > 0 ? Math.round(d.total / total * 100) : 0}%
                 </span>
               </div>

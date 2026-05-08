@@ -7,17 +7,17 @@ import { MonthSelector } from '@/components/ui/MonthSelector'
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Plus, Search, Trash2, X, SlidersHorizontal } from 'lucide-react'
+import { Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Transaction, Category, Bank, TransactionType, Profile } from '@/types'
 
-// ─── Transaction row with swipe-to-delete ───────────────────────────────────
+// ─── Transaction row with swipe + edit/delete ────────────────────────────────
 
-const TYPE_STYLE: Record<TransactionType, { bg: string; color: string; sign: string }> = {
-  receita:       { bg: 'bg-emerald-100', color: 'text-emerald-600', sign: '+' },
-  despesa:       { bg: 'bg-red-100',     color: 'text-red-500',     sign: '-' },
-  fatura:        { bg: 'bg-orange-100',  color: 'text-orange-500',  sign: '-' },
-  transferencia: { bg: 'bg-blue-100',    color: 'text-blue-500',    sign: ''  },
+const TYPE_COLOR: Record<TransactionType, string> = {
+  receita:       '#34D399',
+  despesa:       '#F87171',
+  fatura:        '#FB923C',
+  transferencia: '#22D3EE',
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -35,17 +35,19 @@ const STATUS_LABEL: Record<string, string> = {
 function TransactionRow({
   tx,
   onDelete,
+  onEdit,
 }: {
   tx: Transaction
   onDelete: () => void
+  onEdit: () => void
 }) {
   const [offsetX, setOffsetX] = useState(0)
   const [touching, setTouching] = useState(false)
   const startX = useRef(0)
   const startY = useRef(0)
   const direction = useRef<'h' | 'v' | null>(null)
-  const MAX_SWIPE = 80
-  const SNAP_THRESHOLD = 52
+  const MAX_SWIPE = 128
+  const SNAP_THRESHOLD = 64
 
   const onTouchStart = (e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX
@@ -57,15 +59,11 @@ function TransactionRow({
   const onTouchMove = (e: React.TouchEvent) => {
     const dx = startX.current - e.touches[0].clientX
     const dy = Math.abs(startY.current - e.touches[0].clientY)
-
     if (direction.current === null) {
-      if (Math.abs(dx) > 6 || dy > 6) {
-        direction.current = Math.abs(dx) >= dy ? 'h' : 'v'
-      }
+      if (Math.abs(dx) > 6 || dy > 6) direction.current = Math.abs(dx) >= dy ? 'h' : 'v'
       return
     }
     if (direction.current !== 'h') return
-
     if (dx < 0) { setOffsetX(0); return }
     setOffsetX(Math.min(dx, MAX_SWIPE))
   }
@@ -76,25 +74,33 @@ function TransactionRow({
     setOffsetX(prev => (prev >= SNAP_THRESHOLD ? MAX_SWIPE : 0))
   }
 
-  const ts = TYPE_STYLE[tx.type] ?? TYPE_STYLE.despesa
+  const color = TYPE_COLOR[tx.type] ?? '#F87171'
+  const sign  = tx.type === 'receita' ? '+' : '-'
 
   return (
     <div className="relative overflow-hidden rounded-2xl mb-2">
-      {/* Delete action revealed on swipe */}
-      <div className="absolute inset-y-0 right-0 w-20 bg-red-500 rounded-r-2xl flex items-center justify-center">
-        <button
-          onClick={onDelete}
-          className="flex flex-col items-center gap-1 text-white w-full h-full justify-center"
-        >
-          <Trash2 className="w-5 h-5" />
+      {/* Actions revealed on swipe */}
+      <div className="absolute inset-y-0 right-0 flex" style={{ width: MAX_SWIPE }}>
+        <button onClick={onEdit}
+          className="flex-1 flex flex-col items-center justify-center gap-1 text-white transition-opacity"
+          style={{ background: '#818CF8' }}>
+          <Pencil className="w-4 h-4" />
+          <span className="text-xs font-medium">Editar</span>
+        </button>
+        <button onClick={onDelete}
+          className="flex-1 flex flex-col items-center justify-center gap-1 text-white transition-opacity"
+          style={{ background: '#F87171' }}>
+          <Trash2 className="w-4 h-4" />
           <span className="text-xs font-medium">Apagar</span>
         </button>
       </div>
 
       {/* Main card */}
       <div
-        className="relative bg-white rounded-2xl shadow-card border border-gray-100/50 p-4 z-10"
+        className="relative rounded-2xl p-4 z-10"
         style={{
+          background: 'rgba(17,17,36,0.8)',
+          border: '1px solid rgba(129,140,248,0.12)',
           transform: `translateX(-${offsetX}px)`,
           transition: touching ? 'none' : 'transform 0.2s ease',
         }}
@@ -105,7 +111,8 @@ function TransactionRow({
       >
         <div className="flex items-center gap-3">
           {/* Icon */}
-          <div className={`w-11 h-11 rounded-xl ${ts.bg} flex items-center justify-center flex-shrink-0`}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: color + '20' }}>
             <span className="text-xl">
               {tx.category?.icon ?? (tx.type === 'receita' ? '💰' : '💸')}
             </span>
@@ -113,59 +120,66 @@ function TransactionRow({
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">{tx.description}</p>
-
+            <p className="text-sm font-semibold truncate" style={{ color: '#F1F5F9' }}>{tx.description}</p>
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-              <span className="text-xs text-gray-400">
+              <span className="text-xs" style={{ color: '#475569' }}>
                 {format(new Date(tx.date + 'T12:00:00'), "dd 'de' MMM", { locale: ptBR })}
               </span>
-              {tx.category && (
-                <span className="text-xs text-gray-400">· {tx.category.name}</span>
-              )}
-              {tx.bank && (
-                <span className="text-xs text-gray-400">
-                  · {tx.bank.icon} {tx.bank.name}
-                </span>
-              )}
+              {tx.category && <span className="text-xs" style={{ color: '#475569' }}>· {tx.category.name}</span>}
+              {tx.bank && <span className="text-xs" style={{ color: '#475569' }}>· {tx.bank.icon} {tx.bank.name}</span>}
             </div>
-
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               {tx.profile && (
                 <div className="flex items-center gap-1">
-                  <div
-                    className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
-                    style={{ backgroundColor: tx.profile.avatar_color || '#6366F1' }}
-                  >
+                  <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
+                    style={{ backgroundColor: tx.profile.avatar_color || '#6366F1' }}>
                     {tx.profile.avatar_emoji || tx.profile.name?.[0]}
                   </div>
-                  <span className="text-xs text-gray-400">
-                    {tx.profile.name?.split(' ')[0]}
-                  </span>
+                  <span className="text-xs" style={{ color: '#475569' }}>{tx.profile.name?.split(' ')[0]}</span>
                 </div>
               )}
-              <span className={STATUS_BADGE[tx.status]}>
-                {STATUS_LABEL[tx.status]}
-              </span>
+              <span className={STATUS_BADGE[tx.status]}>{STATUS_LABEL[tx.status]}</span>
               {tx.is_recurring && <span className="text-xs">🔄</span>}
             </div>
           </div>
 
-          {/* Amount */}
-          <p className={`text-sm font-bold flex-shrink-0 ${ts.color}`}>
-            {ts.sign}R${' '}
-            {Number(tx.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </p>
+          {/* Amount + desktop actions */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="hidden md:flex gap-1">
+              <button onClick={onEdit}
+                className="p-1.5 rounded-lg transition-colors"
+                style={{ color: '#818CF8' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                title="Editar">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={onDelete}
+                className="p-1.5 rounded-lg transition-colors"
+                style={{ color: '#F87171' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(248,113,113,0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                title="Apagar">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="text-sm font-bold" style={{ color }}>
+              {sign}R${' '}
+              {Number(tx.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-// ─── Skeleton ────────────────────────────────────────────────────────────────
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function RowSkeleton() {
   return (
-    <div className="bg-white rounded-2xl shadow-card border border-gray-100/50 p-4 mb-2 flex items-center gap-3">
+    <div className="rounded-2xl p-4 mb-2 flex items-center gap-3"
+      style={{ background: 'rgba(17,17,36,0.8)', border: '1px solid rgba(129,140,248,0.08)' }}>
       <div className="skeleton w-11 h-11 rounded-xl flex-shrink-0" />
       <div className="flex-1 space-y-2">
         <div className="skeleton h-3.5 rounded w-40" />
@@ -180,16 +194,31 @@ function RowSkeleton() {
 
 function SummaryChip({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="flex-1 bg-white rounded-2xl shadow-card border border-gray-100/50 px-3 py-2.5 text-center">
-      <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">{label}</p>
-      <p className={`text-sm font-bold mt-0.5 ${color}`}>
+    <div className="flex-1 rounded-2xl px-3 py-2.5 text-center"
+      style={{ background: 'rgba(17,17,36,0.8)', border: '1px solid rgba(129,140,248,0.1)' }}>
+      <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: '#475569' }}>{label}</p>
+      <p className="text-sm font-bold mt-0.5 font-mono-nums" style={{ color }}>
         R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
       </p>
     </div>
   )
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Filter button ─────────────────────────────────────────────────────────────
+
+function FilterBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className="px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-150"
+      style={active
+        ? { background: 'rgba(129,140,248,0.18)', borderColor: '#818CF8', color: '#818CF8' }
+        : { background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)', color: '#64748B' }}>
+      {children}
+    </button>
+  )
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function TransactionsPage() {
   const supabase = createClient()
@@ -201,9 +230,9 @@ export default function TransactionsPage() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [showFilters, setShowFilters] = useState(false)
 
-  // Filters
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState<TransactionType | ''>('')
   const [filterCategoryId, setFilterCategoryId] = useState('')
@@ -214,22 +243,20 @@ export default function TransactionsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const { data: prof } = await supabase
-      .from('profiles').select('*').eq('id', user.id).single()
+    const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
     setProfile(prof)
     if (!prof?.household_id) { setLoading(false); return }
 
-    const hid = prof.household_id
+    const hid   = prof.household_id
     const start = format(startOfMonth(currentDate), 'yyyy-MM-dd')
-    const end = format(endOfMonth(currentDate), 'yyyy-MM-dd')
+    const end   = format(endOfMonth(currentDate), 'yyyy-MM-dd')
 
     const [txRes, cRes, bRes, pRes] = await Promise.all([
       supabase
         .from('transactions')
         .select('*, category:categories(*), bank:banks(*), profile:profiles(id,name,avatar_color,avatar_emoji)')
         .eq('household_id', hid)
-        .gte('date', start)
-        .lte('date', end)
+        .gte('date', start).lte('date', end)
         .order('date', { ascending: false })
         .order('created_at', { ascending: false }),
       supabase.from('categories').select('*').eq('household_id', hid).order('name'),
@@ -244,20 +271,15 @@ export default function TransactionsPage() {
     setLoading(false)
   }, [currentDate])
 
-  useEffect(() => {
-    setLoading(true)
-    fetchData()
-  }, [fetchData])
+  useEffect(() => { setLoading(true); fetchData() }, [fetchData])
 
   useEffect(() => {
-    const channel = supabase
-      .channel('transactions-page')
+    const channel = supabase.channel('transactions-page')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchData)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [fetchData])
 
-  // Check URL param ?add=true (from mobile header)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('add') === 'true') setShowModal(true)
@@ -265,15 +287,20 @@ export default function TransactionsPage() {
 
   const handleDelete = async (tx: Transaction) => {
     const { error } = await supabase.from('transactions').delete().eq('id', tx.id)
-    if (error) {
-      toast.error('Erro ao apagar')
-    } else {
-      toast.success('Lançamento apagado')
-      setTransactions(prev => prev.filter(t => t.id !== tx.id))
-    }
+    if (error) toast.error('Erro ao apagar')
+    else { toast.success('Lançamento apagado'); setTransactions(prev => prev.filter(t => t.id !== tx.id)) }
   }
 
-  // Client-side filtering
+  const handleEdit = (tx: Transaction) => {
+    setEditingTx(tx)
+    setShowModal(true)
+  }
+
+  const handleModalClose = () => {
+    setShowModal(false)
+    setEditingTx(null)
+  }
+
   const filtered = transactions.filter(tx => {
     if (search && !tx.description.toLowerCase().includes(search.toLowerCase())) return false
     if (filterType && tx.type !== filterType) return false
@@ -283,21 +310,14 @@ export default function TransactionsPage() {
     return true
   })
 
-  const income = transactions
-    .filter(t => t.type === 'receita' && t.status === 'realizado')
-    .reduce((s, t) => s + Number(t.amount), 0)
-  const expenses = transactions
-    .filter(t => t.type !== 'receita' && t.status === 'realizado')
-    .reduce((s, t) => s + Number(t.amount), 0)
-  const balance = income - expenses
+  const income   = transactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const expenses = transactions.filter(t => t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const balance  = income - expenses
 
   const activeFilterCount = [filterType, filterCategoryId, filterBankId, filterProfileId].filter(Boolean).length
 
   const clearFilters = () => {
-    setFilterType('')
-    setFilterCategoryId('')
-    setFilterBankId('')
-    setFilterProfileId('')
+    setFilterType(''); setFilterCategoryId(''); setFilterBankId(''); setFilterProfileId('')
   }
 
   return (
@@ -307,8 +327,8 @@ export default function TransactionsPage() {
         {/* Page title */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold text-gray-900">Lançamentos</h1>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <h1 className="text-lg font-bold" style={{ color: '#F1F5F9' }}>Lançamentos</h1>
+            <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
               {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
             </p>
           </div>
@@ -318,42 +338,33 @@ export default function TransactionsPage() {
 
         {/* Summary */}
         <div className="flex gap-2">
-          <SummaryChip label="Receitas" value={income} color="text-emerald-600" />
-          <SummaryChip label="Despesas" value={expenses} color="text-red-500" />
-          <SummaryChip label="Saldo" value={balance} color={balance >= 0 ? 'text-emerald-600' : 'text-red-500'} />
+          <SummaryChip label="Receitas" value={income} color="#34D399" />
+          <SummaryChip label="Despesas" value={expenses} color="#F87171" />
+          <SummaryChip label="Saldo" value={balance} color={balance >= 0 ? '#34D399' : '#F87171'} />
         </div>
 
         {/* Search + Filter toggle */}
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar lançamento..."
-              className="input pl-9"
-            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#475569' }} />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar lançamento..." className="input pl-9" />
             {search && (
-              <button
-                onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-              >
-                <X className="w-3.5 h-3.5 text-gray-400" />
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2">
+                <X className="w-3.5 h-3.5" style={{ color: '#475569' }} />
               </button>
             )}
           </div>
-          <button
-            onClick={() => setShowFilters(v => !v)}
-            className={`relative flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border text-sm font-medium transition-all duration-150
-              ${showFilters || activeFilterCount > 0
-                ? 'bg-primary-50 border-primary-300 text-primary-700'
-                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-          >
+          <button onClick={() => setShowFilters(v => !v)}
+            className="relative flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
+            style={showFilters || activeFilterCount > 0
+              ? { background: 'rgba(129,140,248,0.15)', border: '1px solid rgba(129,140,248,0.4)', color: '#818CF8' }
+              : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#64748B' }}>
             <SlidersHorizontal className="w-4 h-4" />
             <span className="hidden sm:inline">Filtros</span>
             {activeFilterCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary-600 text-white text-[10px] font-bold flex items-center justify-center">
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
+                style={{ background: '#818CF8' }}>
                 {activeFilterCount}
               </span>
             )}
@@ -362,133 +373,65 @@ export default function TransactionsPage() {
 
         {/* Filter panel */}
         {showFilters && (
-          <div className="card space-y-4 animate-fade-in">
+          <div className="card animate-fade-in space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-700">Filtros</p>
+              <p className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>Filtros</p>
               {activeFilterCount > 0 && (
-                <button
-                  onClick={clearFilters}
-                  className="text-xs text-primary-600 font-medium hover:underline"
-                >
+                <button onClick={clearFilters} className="text-xs font-medium" style={{ color: '#818CF8' }}>
                   Limpar tudo
                 </button>
               )}
             </div>
 
-            {/* Tipo */}
             <div>
-              <p className="text-xs text-gray-500 font-medium mb-2">Tipo</p>
+              <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Tipo</p>
               <div className="flex flex-wrap gap-2">
-                {[
-                  { value: '', label: 'Todos' },
-                  { value: 'receita', label: '💰 Receita' },
-                  { value: 'despesa', label: '💸 Despesa' },
-                  { value: 'fatura', label: '💳 Fatura' },
-                  { value: 'transferencia', label: '🔄 Transfer.' },
-                ].map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setFilterType(opt.value as TransactionType | '')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-150
-                      ${filterType === opt.value
-                        ? 'bg-primary-600 border-primary-600 text-white'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+                <FilterBtn active={filterType === ''} onClick={() => setFilterType('')}>Todos</FilterBtn>
+                <FilterBtn active={filterType === 'receita'} onClick={() => setFilterType('receita')}>💰 Receita</FilterBtn>
+                <FilterBtn active={filterType === 'despesa'} onClick={() => setFilterType('despesa')}>💸 Despesa</FilterBtn>
+                <FilterBtn active={filterType === 'fatura'} onClick={() => setFilterType('fatura')}>💳 Fatura</FilterBtn>
+                <FilterBtn active={filterType === 'transferencia'} onClick={() => setFilterType('transferencia')}>🔄 Transfer.</FilterBtn>
               </div>
             </div>
 
-            {/* Categoria */}
             <div>
-              <p className="text-xs text-gray-500 font-medium mb-2">Categoria</p>
+              <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Categoria</p>
               <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setFilterCategoryId('')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-150
-                    ${!filterCategoryId
-                      ? 'bg-primary-600 border-primary-600 text-white'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                >
-                  Todas
-                </button>
+                <FilterBtn active={filterCategoryId === ''} onClick={() => setFilterCategoryId('')}>Todas</FilterBtn>
                 {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setFilterCategoryId(cat.id === filterCategoryId ? '' : cat.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-150
-                      ${filterCategoryId === cat.id
-                        ? 'bg-primary-600 border-primary-600 text-white'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                  >
+                  <FilterBtn key={cat.id} active={filterCategoryId === cat.id}
+                    onClick={() => setFilterCategoryId(cat.id === filterCategoryId ? '' : cat.id)}>
                     {cat.icon} {cat.name}
-                  </button>
+                  </FilterBtn>
                 ))}
               </div>
             </div>
 
-            {/* Banco */}
             {banks.length > 0 && (
               <div>
-                <p className="text-xs text-gray-500 font-medium mb-2">Banco / Cartão</p>
+                <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Banco / Cartão</p>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setFilterBankId('')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-150
-                      ${!filterBankId
-                        ? 'bg-primary-600 border-primary-600 text-white'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                  >
-                    Todos
-                  </button>
+                  <FilterBtn active={filterBankId === ''} onClick={() => setFilterBankId('')}>Todos</FilterBtn>
                   {banks.map(bank => (
-                    <button
-                      key={bank.id}
-                      onClick={() => setFilterBankId(bank.id === filterBankId ? '' : bank.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-150
-                        ${filterBankId === bank.id
-                          ? 'bg-primary-600 border-primary-600 text-white'
-                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                    >
+                    <FilterBtn key={bank.id} active={filterBankId === bank.id}
+                      onClick={() => setFilterBankId(bank.id === filterBankId ? '' : bank.id)}>
                       {bank.icon} {bank.name}
-                    </button>
+                    </FilterBtn>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Quem lançou */}
             {profiles.length > 1 && (
               <div>
-                <p className="text-xs text-gray-500 font-medium mb-2">Quem lançou</p>
+                <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Quem lançou</p>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setFilterProfileId('')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-150
-                      ${!filterProfileId
-                        ? 'bg-primary-600 border-primary-600 text-white'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                  >
-                    Todos
-                  </button>
+                  <FilterBtn active={filterProfileId === ''} onClick={() => setFilterProfileId('')}>Todos</FilterBtn>
                   {profiles.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => setFilterProfileId(p.id === filterProfileId ? '' : p.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-150
-                        ${filterProfileId === p.id
-                          ? 'bg-primary-600 border-primary-600 text-white'
-                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                    >
-                      <div
-                        className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
-                        style={{ backgroundColor: p.avatar_color || '#6366F1' }}
-                      >
-                        {p.avatar_emoji || p.name[0]}
-                      </div>
+                    <FilterBtn key={p.id} active={filterProfileId === p.id}
+                      onClick={() => setFilterProfileId(p.id === filterProfileId ? '' : p.id)}>
                       {p.name.split(' ')[0]}
-                    </button>
+                    </FilterBtn>
                   ))}
                 </div>
               </div>
@@ -498,7 +441,7 @@ export default function TransactionsPage() {
 
         {/* Result count */}
         {!loading && (
-          <p className="text-xs text-gray-400 font-medium">
+          <p className="text-xs font-medium" style={{ color: '#334155' }}>
             {filtered.length === 0
               ? 'Nenhum lançamento encontrado'
               : `${filtered.length} lançamento${filtered.length !== 1 ? 's' : ''}`}
@@ -513,26 +456,22 @@ export default function TransactionsPage() {
           ) : filtered.length === 0 ? (
             <div className="text-center py-16 space-y-3">
               <p className="text-4xl">📭</p>
-              <p className="text-sm font-medium text-gray-500">
+              <p className="text-sm font-medium" style={{ color: '#475569' }}>
                 {transactions.length === 0
                   ? 'Nenhum lançamento neste mês'
                   : 'Nenhum resultado para os filtros'}
               </p>
               {transactions.length === 0 && (
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="btn-primary text-sm mt-2"
-                >
+                <button onClick={() => setShowModal(true)} className="btn-primary text-sm mt-2">
                   Fazer primeiro lançamento
                 </button>
               )}
             </div>
           ) : (
             filtered.map(tx => (
-              <TransactionRow
-                key={tx.id}
-                tx={tx}
+              <TransactionRow key={tx.id} tx={tx}
                 onDelete={() => handleDelete(tx)}
+                onEdit={() => handleEdit(tx)}
               />
             ))
           )}
@@ -540,19 +479,18 @@ export default function TransactionsPage() {
       </div>
 
       {/* FAB */}
-      <button
-        onClick={() => setShowModal(true)}
+      <button onClick={() => { setEditingTx(null); setShowModal(true) }}
         className="fixed bottom-24 md:bottom-8 right-5 md:right-8 w-14 h-14 bg-gradient-card rounded-2xl shadow-float flex items-center justify-center transition-transform duration-150 active:scale-95 z-30"
-        aria-label="Adicionar lançamento"
-      >
+        aria-label="Adicionar lançamento">
         <Plus className="w-6 h-6 text-white" />
       </button>
 
       {/* Modal */}
       <AddTransactionModal
         open={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={handleModalClose}
         onSuccess={fetchData}
+        editTransaction={editingTx}
       />
     </AppLayout>
   )

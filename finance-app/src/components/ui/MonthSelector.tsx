@@ -12,17 +12,25 @@ interface MonthSelectorProps {
 export function MonthSelector({ value, onChange }: MonthSelectorProps) {
   const canGoForward = !isFuture(startOfMonth(addMonths(value, 1)))
 
+  const btnStyle = {
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(129,140,248,0.2)',
+    color: '#818CF8',
+  }
+
   return (
     <div className="flex items-center justify-center gap-3">
-      <button
-        onClick={() => onChange(subMonths(value, 1))}
-        className="w-8 h-8 rounded-xl bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors"
-      >
-        <ChevronLeft className="w-4 h-4 text-gray-500" />
+      <button onClick={() => onChange(subMonths(value, 1))}
+        className="w-8 h-8 rounded-xl flex items-center justify-center transition-colors"
+        style={btnStyle}
+        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.12)')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
+        <ChevronLeft className="w-4 h-4" />
       </button>
 
-      <div className="bg-white border border-gray-200 rounded-xl px-4 py-1.5 min-w-32 text-center">
-        <p className="text-sm font-semibold text-gray-900 capitalize">
+      <div className="rounded-xl px-4 py-1.5 min-w-32 text-center"
+        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(129,140,248,0.2)' }}>
+        <p className="text-sm font-semibold capitalize" style={{ color: '#F1F5F9' }}>
           {format(value, 'MMMM yyyy', { locale: ptBR })}
         </p>
       </div>
@@ -30,9 +38,11 @@ export function MonthSelector({ value, onChange }: MonthSelectorProps) {
       <button
         onClick={() => canGoForward && onChange(addMonths(value, 1))}
         disabled={!canGoForward}
-        className="w-8 h-8 rounded-xl bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-      >
-        <ChevronRight className="w-4 h-4 text-gray-500" />
+        className="w-8 h-8 rounded-xl flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        style={btnStyle}
+        onMouseEnter={e => { if (canGoForward) e.currentTarget.style.background = 'rgba(129,140,248,0.12)' }}
+        onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}>
+        <ChevronRight className="w-4 h-4" />
       </button>
     </div>
   )

@@ -30,45 +30,59 @@ export function SummaryCards({ income, expenses, pending, loading }: SummaryCard
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {/* Receita */}
-      <div className="bg-gradient-income rounded-2xl p-4 text-white col-span-1">
+      <div className="rounded-2xl p-4 col-span-1" style={{
+        background: 'linear-gradient(135deg, rgba(52,211,153,0.15), rgba(52,211,153,0.05))',
+        border: '1px solid rgba(52,211,153,0.25)',
+      }}>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-medium text-emerald-100">Receita</p>
-          <TrendingUp className="w-4 h-4 text-emerald-200" />
+          <p className="text-xs font-medium" style={{ color: '#34D399' }}>Receita</p>
+          <TrendingUp className="w-4 h-4" style={{ color: '#34D399' }} />
         </div>
-        <p className="text-xl font-bold font-mono-nums">{fmt(income)}</p>
-        <p className="text-xs text-emerald-100 mt-1">este mês</p>
+        <p className="text-xl font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{fmt(income)}</p>
+        <p className="text-xs mt-1" style={{ color: '#64748B' }}>este mês</p>
       </div>
 
       {/* Despesa */}
-      <div className="bg-gradient-expense rounded-2xl p-4 text-white col-span-1">
+      <div className="rounded-2xl p-4 col-span-1" style={{
+        background: 'linear-gradient(135deg, rgba(248,113,113,0.15), rgba(248,113,113,0.05))',
+        border: '1px solid rgba(248,113,113,0.25)',
+      }}>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-medium text-red-100">Despesas</p>
-          <TrendingDown className="w-4 h-4 text-red-200" />
+          <p className="text-xs font-medium" style={{ color: '#F87171' }}>Despesas</p>
+          <TrendingDown className="w-4 h-4" style={{ color: '#F87171' }} />
         </div>
-        <p className="text-xl font-bold font-mono-nums">{fmt(expenses)}</p>
-        <p className="text-xs text-red-100 mt-1">{spentPct}% da renda</p>
+        <p className="text-xl font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{fmt(expenses)}</p>
+        <p className="text-xs mt-1" style={{ color: '#64748B' }}>{spentPct}% da renda</p>
       </div>
 
       {/* Saldo */}
-      <div className={`rounded-2xl p-4 col-span-1 ${balance >= 0 ? 'bg-indigo-50 border border-indigo-100' : 'bg-red-50 border border-red-100'}`}>
+      <div className="rounded-2xl p-4 col-span-1" style={{
+        background: balance >= 0
+          ? 'linear-gradient(135deg, rgba(129,140,248,0.15), rgba(129,140,248,0.05))'
+          : 'linear-gradient(135deg, rgba(248,113,113,0.15), rgba(248,113,113,0.05))',
+        border: `1px solid ${balance >= 0 ? 'rgba(129,140,248,0.25)' : 'rgba(248,113,113,0.25)'}`,
+      }}>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-medium text-gray-500">Saldo</p>
+          <p className="text-xs font-medium" style={{ color: '#94A3B8' }}>Saldo</p>
           <span className="text-base">{balance >= 0 ? '✅' : '⚠️'}</span>
         </div>
-        <p className={`text-xl font-bold font-mono-nums ${balance >= 0 ? 'text-indigo-700' : 'text-red-600'}`}>
+        <p className="text-xl font-bold font-mono-nums" style={{ color: balance >= 0 ? '#818CF8' : '#F87171' }}>
           {balance >= 0 ? '+' : ''}{fmt(balance)}
         </p>
-        <p className="text-xs text-gray-400 mt-1">{balance >= 0 ? 'superávit' : 'déficit'}</p>
+        <p className="text-xs mt-1" style={{ color: '#64748B' }}>{balance >= 0 ? 'superávit' : 'déficit'}</p>
       </div>
 
       {/* Pendentes */}
-      <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 col-span-1">
+      <div className="rounded-2xl p-4 col-span-1" style={{
+        background: 'linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))',
+        border: '1px solid rgba(251,191,36,0.25)',
+      }}>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-medium text-gray-500">Pendentes</p>
-          <Clock className="w-4 h-4 text-amber-400" />
+          <p className="text-xs font-medium" style={{ color: '#FBBF24' }}>Pendentes</p>
+          <Clock className="w-4 h-4" style={{ color: '#FBBF24' }} />
         </div>
-        <p className="text-xl font-bold font-mono-nums text-amber-700">{fmt(pending)}</p>
-        <p className="text-xs text-gray-400 mt-1">a pagar</p>
+        <p className="text-xl font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{fmt(pending)}</p>
+        <p className="text-xs mt-1" style={{ color: '#64748B' }}>a pagar</p>
       </div>
     </div>
   )
