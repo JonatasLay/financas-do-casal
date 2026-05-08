@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { NumericFormat } from 'react-number-format'
 import { toast } from 'sonner'
 import { Plus, X, PiggyBank, TrendingUp, Sparkles, Trash2, Edit2 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import type { Savings } from '@/types'
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -182,6 +183,7 @@ export default function SavingsPage() {
   const [loading, setLoading]   = useState(true)
   const [showAdd, setShowAdd]   = useState(false)
   const [editing, setEditing]   = useState<Savings | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [aiTip, setAiTip]       = useState<string | null>(null)
   const [loadingTip, setLoadingTip] = useState(false)
 
@@ -204,10 +206,11 @@ export default function SavingsPage() {
     fetch('/api/ai/tip').then(r => r.json()).then(d => setAiTip(d.tip)).catch(() => {}).finally(() => setLoadingTip(false))
   }, [savings.length])
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Remover esta poupança?')) return
-    await supabase.from('savings').delete().eq('id', id)
+  const handleDelete = async () => {
+    if (!deletingId) return
+    await supabase.from('savings').delete().eq('id', deletingId)
     toast.success('Removida!')
+    setDeletingId(null)
     fetchData()
   }
 
@@ -334,7 +337,7 @@ export default function SavingsPage() {
                         className="p-1.5 rounded-lg transition-colors" style={{ color: '#475569' }}>
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => handleDelete(sv.id)}
+                      <button onClick={() => setDeletingId(sv.id)}
                         className="p-1.5 rounded-lg transition-colors" style={{ color: '#475569' }}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -348,6 +351,15 @@ export default function SavingsPage() {
       </div>
 
       <AddSavingsModal open={showAdd} onClose={() => { setShowAdd(false); setEditing(null) }} onSuccess={fetchData} editing={editing} />
+
+      <ConfirmDialog
+        open={!!deletingId}
+        title="Remover poupança?"
+        message="Esta ação não pode ser desfeita."
+        confirmLabel="Remover"
+        onConfirm={handleDelete}
+        onCancel={() => setDeletingId(null)}
+      />
     </AppLayout>
   )
 }

@@ -251,3 +251,51 @@
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line { stroke: rgba(255,255,255,0.05) !important; }
 .recharts-tooltip-wrapper { filter: drop-shadow(0 8px 24px rgba(0,0,0,0.6)); }
+
+/* ─── Global dark theme remapping ────────────────────────────────────────────── */
+/* Remap Tailwind gray text classes to light colors in dark theme */
+.text-gray-900, .text-gray-800 { color: #F1F5F9; }
+.text-gray-700                  { color: #CBD5E1; }
+.text-gray-600                  { color: #94A3B8; }
+.text-gray-500                  { color: #64748B; }
+.text-gray-400                  { color: #475569; }
+.text-gray-300                  { color: #334155; }
+
+/* Remap white/light backgrounds */
+.bg-white                { background: rgba(17,17,36,0.92) !important; }
+.bg-gray-50              { background: rgba(255,255,255,0.04) !important; }
+.bg-gray-100             { background: rgba(255,255,255,0.06) !important; }
+.bg-gray-200             { background: rgba(255,255,255,0.09) !important; }
+.bg-red-50               { background: rgba(248,113,113,0.08) !important; }
+.bg-amber-50             { background: rgba(251,191,36,0.08) !important; }
+.bg-emerald-100          { background: rgba(52,211,153,0.15) !important; }
+.bg-red-100              { background: rgba(248,113,113,0.15) !important; }
+.bg-amber-100            { background: rgba(251,191,36,0.15) !important; }
+.bg-indigo-50            { background: rgba(99,102,241,0.08) !important; }
+
+/* Remap light borders */
+.border-gray-50          { border-color: rgba(255,255,255,0.05) !important; }
+.border-gray-100         { border-color: rgba(255,255,255,0.07) !important; }
+.border-gray-200         { border-color: rgba(255,255,255,0.09) !important; }
+.border-red-100          { border-color: rgba(248,113,113,0.2) !important; }
+.border-red-200          { border-color: rgba(248,113,113,0.3) !important; }
+.border-amber-100        { border-color: rgba(251,191,36,0.2) !important; }
+.border-amber-200        { border-color: rgba(251,191,36,0.3) !important; }
+.border-primary-100      { border-color: rgba(129,140,248,0.2) !important; }
+
+/* Remap emerald text */
+.text-emerald-600, .text-emerald-700 { color: #34D399; }
+.text-emerald-100, .text-emerald-200 { color: rgba(52,211,153,0.7); }
+
+/* Remap red text */
+.text-red-500, .text-red-600 { color: #F87171; }
+.text-red-100, .text-red-200 { color: rgba(248,113,113,0.7); }
+
+/* Remap amber/orange text */
+.text-amber-600, .text-amber-700 { color: #FBBF24; }
+
+/* Remap primary text */
+.text-primary-600, .text-primary-700 { color: #818CF8; }
+
+/* Card shadows in dark mode */
+.shadow-card { box-shadow: 0 4px 16px rgba(0,0,0,0.5); }

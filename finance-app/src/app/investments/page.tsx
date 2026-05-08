@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { NumericFormat } from 'react-number-format'
 import { toast } from 'sonner'
 import { Plus, X, LineChart, TrendingUp, TrendingDown, Sparkles, Trash2, Edit2, Send, Bot } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import type { Investment } from '@/types'
 
@@ -289,6 +290,7 @@ export default function InvestmentsPage() {
   const [loading, setLoading]         = useState(true)
   const [showAdd, setShowAdd]         = useState(false)
   const [editing, setEditing]         = useState<Investment | null>(null)
+  const [deletingId, setDeletingId]   = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -303,10 +305,11 @@ export default function InvestmentsPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Remover este investimento?')) return
-    await supabase.from('investments').delete().eq('id', id)
+  const handleDelete = async () => {
+    if (!deletingId) return
+    await supabase.from('investments').delete().eq('id', deletingId)
     toast.success('Removido!')
+    setDeletingId(null)
     fetchData()
   }
 
@@ -473,7 +476,7 @@ export default function InvestmentsPage() {
                     </div>
                     <div className="flex flex-col gap-1">
                       <button onClick={() => { setEditing(inv); setShowAdd(true) }} className="p-1.5 rounded-lg" style={{ color: '#475569' }}><Edit2 className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => handleDelete(inv.id)} className="p-1.5 rounded-lg" style={{ color: '#475569' }}><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setDeletingId(inv.id)} className="p-1.5 rounded-lg" style={{ color: '#475569' }}><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
                 </div>
@@ -484,6 +487,15 @@ export default function InvestmentsPage() {
       </div>
 
       <AddInvestmentModal open={showAdd} onClose={() => { setShowAdd(false); setEditing(null) }} onSuccess={fetchData} editing={editing} />
+
+      <ConfirmDialog
+        open={!!deletingId}
+        title="Remover investimento?"
+        message="Esta ação não pode ser desfeita."
+        confirmLabel="Remover"
+        onConfirm={handleDelete}
+        onCancel={() => setDeletingId(null)}
+      />
     </AppLayout>
   )
 }

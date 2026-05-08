@@ -9,6 +9,7 @@ import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import type { Transaction, Category, Bank, TransactionType, Profile } from '@/types'
 
 // ─── Transaction row with swipe + edit/delete ────────────────────────────────
@@ -231,6 +232,7 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  const [deletingTx, setDeletingTx] = useState<Transaction | null>(null)
   const [showFilters, setShowFilters] = useState(false)
 
   const [search, setSearch] = useState('')
@@ -285,10 +287,12 @@ export default function TransactionsPage() {
     if (params.get('add') === 'true') setShowModal(true)
   }, [])
 
-  const handleDelete = async (tx: Transaction) => {
-    const { error } = await supabase.from('transactions').delete().eq('id', tx.id)
+  const handleDelete = async () => {
+    if (!deletingTx) return
+    const { error } = await supabase.from('transactions').delete().eq('id', deletingTx.id)
     if (error) toast.error('Erro ao apagar')
-    else { toast.success('Lançamento apagado'); setTransactions(prev => prev.filter(t => t.id !== tx.id)) }
+    else { toast.success('Lançamento apagado'); setTransactions(prev => prev.filter(t => t.id !== deletingTx.id)) }
+    setDeletingTx(null)
   }
 
   const handleEdit = (tx: Transaction) => {
@@ -470,7 +474,7 @@ export default function TransactionsPage() {
           ) : (
             filtered.map(tx => (
               <TransactionRow key={tx.id} tx={tx}
-                onDelete={() => handleDelete(tx)}
+                onDelete={() => setDeletingTx(tx)}
                 onEdit={() => handleEdit(tx)}
               />
             ))
@@ -491,6 +495,15 @@ export default function TransactionsPage() {
         onClose={handleModalClose}
         onSuccess={fetchData}
         editTransaction={editingTx}
+      />
+
+      <ConfirmDialog
+        open={!!deletingTx}
+        title="Apagar lançamento?"
+        message={deletingTx ? `"${deletingTx.description}" será apagado permanentemente.` : ''}
+        confirmLabel="Apagar"
+        onConfirm={handleDelete}
+        onCancel={() => setDeletingTx(null)}
       />
     </AppLayout>
   )

@@ -12,10 +12,11 @@ import { RecentTransactions } from '@/components/dashboard/RecentTransactions'
 import { DailyTip } from '@/components/dashboard/DailyTip'
 import { OnlineIndicator } from '@/components/dashboard/OnlineIndicator'
 import { BudgetsMini } from '@/components/dashboard/BudgetsMini'
+import { CreditCardSummary } from '@/components/dashboard/CreditCardSummary'
 import { MonthSelector } from '@/components/ui/MonthSelector'
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal'
 import { RefreshCw } from 'lucide-react'
-import type { Transaction, Goal, Category, Budget } from '@/types'
+import type { Transaction, Goal, Category, Budget, Bank } from '@/types'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -37,6 +38,7 @@ export default function DashboardPage() {
   const [goals, setGoals] = useState<Goal[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
+  const [banks, setBanks] = useState<Bank[]>([])
   const [monthlyHistory, setMonthlyHistory] = useState<{ month: string; income: number; expenses: number }[]>([])
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -71,7 +73,7 @@ export default function DashboardPage() {
     const month = currentDate.getMonth() + 1
     const year  = currentDate.getFullYear()
 
-    const [txRes, goalsRes, catsRes, budgetsRes] = await Promise.all([
+    const [txRes, goalsRes, catsRes, budgetsRes, banksRes] = await Promise.all([
       supabase
         .from('transactions')
         .select('*, category:categories(*), bank:banks(*), profile:profiles(name, avatar_color, avatar_emoji)')
@@ -95,12 +97,17 @@ export default function DashboardPage() {
         .eq('household_id', hid)
         .eq('month', month)
         .eq('year', year),
+      supabase
+        .from('banks')
+        .select('*')
+        .eq('household_id', hid),
     ])
 
     setTransactions(txRes.data || [])
     setGoals(goalsRes.data || [])
     setCategories(catsRes.data || [])
     setBudgets(budgetsRes.data || [])
+    setBanks((banksRes.data || []) as Bank[])
 
     // Historical 6-month data for the bar chart
     const history: { month: string; income: number; expenses: number }[] = []
@@ -218,10 +225,10 @@ export default function DashboardPage() {
           {/* Greeting + online indicator */}
           <motion.div {...fadeUp(0)} className="flex items-center justify-between">
             <div>
-              <h1 className="text-lg font-bold text-gray-900">
+              <h1 className="text-lg font-bold" style={{ color: '#F1F5F9' }}>
                 Olá, {profile?.name?.split(' ')[0] ?? '...'} 👋
               </h1>
-              <p className="text-sm text-gray-500">Aqui está seu resumo</p>
+              <p className="text-sm" style={{ color: '#64748B' }}>Aqui está seu resumo</p>
             </div>
             <OnlineIndicator householdId={profile?.household_id} />
           </motion.div>
@@ -259,6 +266,15 @@ export default function DashboardPage() {
           <motion.div {...fadeUp(0.25)}>
             <BudgetsMini
               budgets={budgets}
+              transactions={transactions}
+              loading={loading}
+            />
+          </motion.div>
+
+          {/* Credit cards */}
+          <motion.div {...fadeUp(0.28)}>
+            <CreditCardSummary
+              banks={banks}
               transactions={transactions}
               loading={loading}
             />

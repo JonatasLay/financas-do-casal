@@ -10,7 +10,7 @@ export interface Household { id: string; name: string; created_at: string }
 
 export interface Profile {
   id: string; household_id: string; name: string
-  avatar_color: string; avatar_emoji: string; created_at: string
+  avatar_color: string; avatar_emoji: string; avatar_url?: string | null; created_at: string
 }
 
 export interface Category {
@@ -21,6 +21,8 @@ export interface Category {
 export interface Bank {
   id: string; household_id: string; name: string
   type: BankType; color: string; icon: string; is_default: boolean
+  limit_amount?: number | null
+  due_day?: number | null
 }
 
 export interface Transaction {
