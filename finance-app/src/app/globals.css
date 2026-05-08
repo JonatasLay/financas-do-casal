@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: #6366F1;
+    --color-income: #10B981;
+    --color-expense: #EF4444;
+  }
+
+  * { -webkit-tap-highlight-color: transparent; }
+
+  body {
+    @apply antialiased;
+    overscroll-behavior: none;
+  }
+
+  /* Scrollbar bonita */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-primary-200 rounded-full; }
+}
+
+@layer components {
+  /* Cards padrão */
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-gray-100/50 p-4;
+  }
+
+  /* Botões */
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 active:scale-95 text-white 
+           font-medium rounded-xl px-4 py-2.5 transition-all duration-150
+           shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-100 hover:bg-gray-200 active:scale-95 text-gray-700
+           font-medium rounded-xl px-4 py-2.5 transition-all duration-150;
+  }
+
+  .btn-ghost {
+    @apply hover:bg-gray-100 active:scale-95 text-gray-600
+           font-medium rounded-xl px-3 py-2 transition-all duration-150;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5
+           text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/30 
+           focus:border-primary-400 transition-all duration-150;
+  }
+
+  /* Badge de status */
+  .badge {
+    @apply text-xs font-medium px-2 py-0.5 rounded-full;
+  }
+
+  .badge-income { @apply bg-emerald-100 text-emerald-700; }
+  .badge-expense { @apply bg-red-100 text-red-700; }
+  .badge-pending { @apply bg-amber-100 text-amber-700; }
+  .badge-done { @apply bg-gray-100 text-gray-600; }
+
+  /* Valor positivo/negativo */
+  .amount-income { @apply text-emerald-600 font-semibold; }
+  .amount-expense { @apply text-red-500 font-semibold; }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply animate-pulse bg-gray-200 rounded-lg;
+  }
+
+  /* Bottom nav safe area */
+  .bottom-nav-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@layer utilities {
+  /* Gradientes de texto */
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary-600 to-purple-600 bg-clip-text text-transparent;
+  }
+
+  /* Glass morphism (sutil) */
+  .glass {
+    @apply bg-white/80 backdrop-blur-sm;
+  }
+
+  /* Número formatado */
+  .font-mono-nums {
+    font-feature-settings: 'tnum';
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Animação do typing indicator da IA */
+.typing-dot {
+  animation: typingBounce 1.4s infinite ease-in-out;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-5px); }
+}
+
+/* Swipe action para mobile */
+.swipe-container { overflow: hidden; position: relative; }
+.swipe-action {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  display: flex; align-items: center;
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+}
+
+/* PWA splash */
+@media (display-mode: standalone) {
+  body { padding-top: env(safe-area-inset-top); }
+}
