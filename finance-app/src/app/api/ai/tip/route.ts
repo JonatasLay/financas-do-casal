@@ -8,7 +8,7 @@ import { format, startOfMonth, endOfMonth } from 'date-fns'
 
 export async function GET() {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ tip: null }, { status: 401 })
 
