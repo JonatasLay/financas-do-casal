@@ -86,7 +86,10 @@ export function SecurityTab() {
   }
 
   const hasVerifiedFactor = factors.some(f => f.status === 'verified')
-  const qrSrc = qrCode ? `data:image/svg+xml;utf-8,${encodeURIComponent(qrCode)}` : ''
+  const qrMarkup = qrCode.trim().startsWith('<svg') ? qrCode : ''
+  const qrSrc = qrCode && !qrMarkup
+    ? (qrCode.startsWith('data:image') ? qrCode : `data:image/svg+xml;utf8,${encodeURIComponent(qrCode)}`)
+    : ''
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -116,8 +119,16 @@ export function SecurityTab() {
 
         {qrCode && (
           <div className="space-y-3">
-            <div className="flex justify-center rounded-2xl p-4" style={{ background: '#fff' }}>
-              <img src={qrSrc} alt="QR Code MFA" className="w-48 h-48" />
+            <div className="flex justify-center rounded-2xl p-4 min-h-56 items-center" style={{ background: '#fff' }}>
+              {qrMarkup ? (
+                <div
+                  className="w-48 h-48 [&>svg]:w-full [&>svg]:h-full"
+                  dangerouslySetInnerHTML={{ __html: qrMarkup }}
+                  aria-label="QR Code MFA"
+                />
+              ) : (
+                <img src={qrSrc} alt="QR Code MFA" className="w-48 h-48" />
+              )}
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={labelStyle}>Chave manual</p>

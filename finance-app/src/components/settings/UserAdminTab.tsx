@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { ShieldCheck, UserPlus, Mail, X, Crown } from 'lucide-react'
+import { ShieldCheck, UserPlus, Mail, X, Crown, KeyRound } from 'lucide-react'
 import type { HouseholdInvite, Profile } from '@/types'
 
 const textStyle = { color: '#F1F5F9' } as const
@@ -21,6 +21,7 @@ export function UserAdminTab({ profile }: { profile: Profile | null }) {
   const [role, setRole] = useState<'admin' | 'member'>('member')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [resettingMfaId, setResettingMfaId] = useState('')
 
   const isAdmin = profile?.role === 'admin'
 
@@ -73,6 +74,21 @@ export function UserAdminTab({ profile }: { profile: Profile | null }) {
     load()
   }
 
+  const resetMfa = async (member: Profile) => {
+    const confirmed = window.confirm(`Resetar MFA de ${member.name}? A pessoa precisara configurar o autenticador novamente.`)
+    if (!confirmed) return
+    setResettingMfaId(member.id)
+    const res = await fetch('/api/admin/mfa/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetUserId: member.id }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setResettingMfaId('')
+    if (!res.ok) return void toast.error(data.error || 'Erro ao resetar MFA')
+    toast.success(data.removed > 0 ? 'MFA resetado com sucesso' : 'Nenhum MFA cadastrado para esse usuario')
+  }
+
   const updateRole = async (member: Profile, nextRole: 'admin' | 'member') => {
     if (member.id === profile?.id && nextRole !== 'admin') {
       const adminCount = members.filter(item => item.role === 'admin').length
@@ -110,7 +126,7 @@ export function UserAdminTab({ profile }: { profile: Profile | null }) {
       <div className="card space-y-4">
         <div className="flex items-center gap-2">
           <UserPlus className="w-4 h-4" style={{ color: '#818CF8' }} />
-          <p className="font-semibold text-sm" style={textStyle}>Convidar usuario</p>
+          <p className="font-semibold text-sm" style={textStyle}>Convidar ou vincular usuario</p>
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={labelStyle}>Email</p>
@@ -131,10 +147,10 @@ export function UserAdminTab({ profile }: { profile: Profile | null }) {
           </div>
         </div>
         <button onClick={invite} disabled={saving} className="btn-primary w-full">
-          {saving ? 'Criando...' : 'Criar convite'}
+          {saving ? 'Processando...' : 'Vincular / criar convite'}
         </button>
         <p className="text-[11px]" style={{ color: '#475569' }}>
-          O cadastro so sera aceito se o email tiver convite pendente no mesmo household.
+          Se a conta ja existir, ela sera vinculada ao seu painel. Se nao existir, fica um convite pendente para esse email.
         </p>
       </div>
 
@@ -156,15 +172,26 @@ export function UserAdminTab({ profile }: { profile: Profile | null }) {
                   <p className="text-sm font-medium truncate" style={textStyle}>{member.name}</p>
                   <p className="text-[10px] truncate" style={{ color: '#64748B' }}>{member.email || 'email nao sincronizado'}</p>
                 </div>
-                <select
-                  value={member.role || 'member'}
-                  onChange={e => updateRole(member, e.target.value as 'admin' | 'member')}
-                  className="rounded-xl px-2 py-1.5 text-xs outline-none"
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#F1F5F9' }}
-                >
-                  <option value="member">Membro</option>
-                  <option value="admin">Admin</option>
-                </select>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => resetMfa(member)}
+                    disabled={resettingMfaId === member.id}
+                    className="p-2 rounded-lg transition-colors disabled:opacity-40"
+                    style={{ color: '#FBBF24', background: 'rgba(251,191,36,0.08)' }}
+                    title="Resetar MFA"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                  </button>
+                  <select
+                    value={member.role || 'member'}
+                    onChange={e => updateRole(member, e.target.value as 'admin' | 'member')}
+                    className="rounded-xl px-2 py-1.5 text-xs outline-none"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#F1F5F9' }}
+                  >
+                    <option value="member">Membro</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
               </div>
             ))}
           </div>
