@@ -115,10 +115,14 @@
 
   /* ─── Inputs ─────────────────────────────────────────────── */
   .input {
-    @apply w-full rounded-xl px-3.5 py-2.5 text-sm transition-all duration-150 outline-none;
+    @apply w-full rounded-xl px-3.5 py-2.5 transition-all duration-150 outline-none;
+    font-size: 16px; /* iOS: prevents auto-zoom on focus */
+    line-height: 1.5;
     background: rgba(17,17,36,0.8);
     border: 1px solid rgba(129,140,248,0.15);
     color: var(--text-primary);
+    -webkit-appearance: none;
+    appearance: none;
   }
   .input::placeholder { color: var(--text-muted); }
   .input:focus {
@@ -197,6 +201,18 @@
 
   /* ─── Bottom nav ─────────────────────────────────────────── */
   .bottom-nav-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+  /* ─── Animations ─────────────────────────────────────────── */
+  .animate-slide-up {
+    animation: slideUp 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.22s ease both;
+  }
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+  .scale-115 { transform: scale(1.15); }
 }
 
 @layer utilities {
@@ -241,10 +257,34 @@
   transition: transform 0.2s ease;
 }
 
-/* ─── PWA ────────────────────────────────────────────────────────────────────── */
+/* ─── Keyframes ──────────────────────────────────────────────────────────────── */
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+/* ─── PWA / iOS safe areas ───────────────────────────────────────────────────── */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .safe-top    { padding-top: env(safe-area-inset-top); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}
 @media (display-mode: standalone) {
   body { padding-top: env(safe-area-inset-top); }
 }
+
+/* ─── iOS touch improvements ────────────────────────────────────────────────── */
+* { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+input, textarea, select { -webkit-appearance: none; }
+/* Smooth momentum scrolling on iOS */
+.overflow-y-auto, .overflow-y-scroll { -webkit-overflow-scrolling: touch; }
 
 /* ─── Recharts dark overrides ────────────────────────────────────────────────── */
 .recharts-cartesian-axis-tick-value { fill: #475569 !important; font-size: 11px; }

@@ -15,7 +15,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  maximumScale: 5,    // allow pinch-zoom for accessibility
+  viewportFit: 'cover', // iOS safe area (notch / home indicator)
   themeColor: '#08080F',
 }
 

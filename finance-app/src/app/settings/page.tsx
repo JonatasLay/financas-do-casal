@@ -323,7 +323,9 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
   }
 
   return (
-    <div className="space-y-6 max-w-sm">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      {/* ── Left column: avatar + name + colors ── */}
+      <div className="space-y-6">
       {/* Avatar preview */}
       <div className="flex items-center gap-4 p-4 rounded-2xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
         <div className="relative flex-shrink-0">
@@ -380,79 +382,79 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
         <Save className="w-4 h-4" />
         {saving ? 'Salvando...' : 'Salvar perfil'}
       </button>
+      </div>{/* end left column */}
 
-      {/* Divider */}
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }} />
+      {/* ── Right column: password + members ── */}
+      <div className="space-y-6">
 
-      {/* Password change */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <KeyRound className="w-4 h-4" style={{ color: '#818CF8' }} />
-          <p className="font-semibold text-sm" style={textStyle}>Alterar senha</p>
-        </div>
-        <div className="relative">
-          <input
-            type={showPwd ? 'text' : 'password'}
-            value={newPwd}
-            onChange={e => setNewPwd(e.target.value)}
-            placeholder="Nova senha (mínimo 6 caracteres)"
-            className="input pr-10"
-          />
-          <button type="button" onClick={() => setShowPwd(v => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: '#64748B' }}>
-            {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        {/* Password change */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <KeyRound className="w-4 h-4" style={{ color: '#818CF8' }} />
+            <p className="font-semibold text-sm" style={textStyle}>Alterar senha</p>
+          </div>
+          <div className="relative">
+            <input
+              type={showPwd ? 'text' : 'password'}
+              value={newPwd}
+              onChange={e => setNewPwd(e.target.value)}
+              placeholder="Nova senha (mínimo 6 caracteres)"
+              className="input pr-11"
+            />
+            <button type="button" onClick={() => setShowPwd(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1" style={{ color: '#64748B' }}>
+              {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+          <button onClick={changePassword} disabled={changingPwd || newPwd.length < 6}
+            className="mt-3 w-full py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
+            style={{ background: 'rgba(129,140,248,0.12)', border: '1px solid rgba(129,140,248,0.3)', color: '#818CF8' }}>
+            {changingPwd ? 'Alterando...' : '🔑 Alterar senha'}
           </button>
         </div>
-        <button onClick={changePassword} disabled={changingPwd || newPwd.length < 6}
-          className="mt-2 w-full py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
-          style={{ background: 'rgba(129,140,248,0.12)', border: '1px solid rgba(129,140,248,0.3)', color: '#818CF8' }}>
-          {changingPwd ? 'Alterando...' : '🔑 Alterar senha'}
-        </button>
-      </div>
 
-      {/* Divider */}
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }} />
-
-      {/* Household members */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <Users className="w-4 h-4" style={{ color: '#34D399' }} />
-          <p className="font-semibold text-sm" style={textStyle}>Membros do casal</p>
-        </div>
-        <div className="space-y-2">
-          {members.map(m => (
-            <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 overflow-hidden"
-                style={{ backgroundColor: m.avatar_color }}>
-                {m.avatar_url
-                  ? <img src={m.avatar_url} alt={m.name} className="w-full h-full object-cover" />
-                  : m.avatar_emoji}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate" style={textStyle}>{m.name}</p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <ShieldCheck className="w-3 h-3" style={{ color: '#34D399' }} />
-                  <p className="text-[10px]" style={{ color: '#34D399' }}>
-                    {m.id === profile?.id ? 'Você · Membro' : 'Membro'}
-                  </p>
+        {/* Household members */}
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="w-4 h-4" style={{ color: '#34D399' }} />
+            <p className="font-semibold text-sm" style={textStyle}>Membros do casal</p>
+          </div>
+          <div className="space-y-2">
+            {members.map(m => (
+              <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 overflow-hidden"
+                  style={{ backgroundColor: m.avatar_color }}>
+                  {m.avatar_url
+                    ? <img src={m.avatar_url} alt={m.name} className="w-full h-full object-cover" />
+                    : m.avatar_emoji}
                 </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate" style={textStyle}>{m.name}</p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <ShieldCheck className="w-3 h-3" style={{ color: '#34D399' }} />
+                    <p className="text-[10px]" style={{ color: '#34D399' }}>
+                      {m.id === profile?.id ? 'Você · Membro' : 'Membro'}
+                    </p>
+                  </div>
+                </div>
+                {m.id === profile?.id && (
+                  <span className="text-[10px] px-2 py-1 rounded-lg" style={{ background: 'rgba(129,140,248,0.1)', color: '#818CF8' }}>
+                    Você
+                  </span>
+                )}
               </div>
-              {m.id === profile?.id && (
-                <span className="text-[10px] px-2 py-1 rounded-lg" style={{ background: 'rgba(129,140,248,0.1)', color: '#818CF8' }}>
-                  Você
-                </span>
-              )}
-            </div>
-          ))}
-          {members.length === 0 && (
-            <p className="text-sm text-center py-4" style={{ color: '#475569' }}>Carregando membros...</p>
-          )}
+            ))}
+            {members.length === 0 && (
+              <p className="text-sm text-center py-4" style={{ color: '#475569' }}>Carregando membros...</p>
+            )}
+          </div>
+          <p className="text-[10px] mt-3" style={{ color: '#334155' }}>
+            Para convidar alguém ao casal, entre em contato com o suporte.
+          </p>
         </div>
-        <p className="text-[10px] mt-2" style={{ color: '#334155' }}>
-          Para convidar alguém ao household, entre em contato com o suporte.
-        </p>
-      </div>
+
+      </div>{/* end right column */}
     </div>
   )
 }
@@ -497,7 +499,10 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
   }
 
   return (
-    <div className="space-y-4 max-w-lg">
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* ── Left: existing categories ── */}
+        <div className="space-y-4">
       {(['receita','despesa','ambos'] as const).map(t => grouped[t].length > 0 && (
         <div key={t}>
           <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#475569' }}>{CAT_TYPE_LABEL[t]}</p>
@@ -533,33 +538,25 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
           </div>
         </div>
       ))}
+        </div>{/* end left col */}
 
-      <button onClick={() => setShowForm(v => !v)}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm transition-all"
-        style={{ border: '2px dashed rgba(129,140,248,0.25)', color: showForm ? '#F87171' : '#818CF8' }}
-        onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(129,140,248,0.5)')}
-        onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(129,140,248,0.25)')}>
-        {showForm ? <ChevronUp className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-        {showForm ? 'Cancelar' : 'Adicionar categoria'}
-      </button>
-
-      {showForm && (
-        <div className="card space-y-4 animate-fade-in" style={{ border: '1px solid rgba(129,140,248,0.2)' }}>
+        {/* ── Right: add form always visible ── */}
+        <div className="card space-y-4" style={{ border: '1px solid rgba(129,140,248,0.2)' }}>
           <p className="font-semibold text-sm" style={textStyle}>Nova categoria</p>
-          <div className="flex gap-2">
-            <div className="relative">
+          <div className="flex gap-3">
+            <div className="relative flex-shrink-0">
               <button type="button" onClick={() => setShowIconPicker(v => !v)}
-                className="w-12 h-10 rounded-xl text-xl flex items-center justify-center transition-colors"
+                className="w-12 h-12 rounded-xl text-2xl flex items-center justify-center transition-colors"
                 style={{ backgroundColor: color + '20', border: `2px solid ${showIconPicker ? color : 'rgba(255,255,255,0.1)'}` }}>
                 {icon}
               </button>
               {showIconPicker && (
-                <div className="absolute top-12 left-0 z-20 rounded-2xl shadow-2xl p-2 w-56 grid grid-cols-7 gap-1"
+                <div className="absolute top-14 left-0 z-20 rounded-2xl shadow-2xl p-2 w-60 grid grid-cols-7 gap-1"
                   style={{ background: 'rgba(13,13,26,0.99)', border: '1px solid rgba(129,140,248,0.25)' }}>
                   {CAT_ICONS.map(em => (
                     <button key={em} type="button" onClick={() => { setIcon(em); setShowIconPicker(false) }}
                       className="aspect-square rounded-lg text-lg flex items-center justify-center transition-colors"
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.1)')}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.12)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                       {em}
                     </button>
@@ -567,12 +564,12 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
                 </div>
               )}
             </div>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nome da categoria" className="input flex-1" />
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nome da categoria" className="input" />
           </div>
           <div className="flex gap-2">
             {(['despesa','receita','ambos'] as const).map(t => (
               <button key={t} type="button" onClick={() => setType(t)}
-                className="flex-1 py-2 rounded-xl text-xs font-medium border-2 transition-all"
+                className="flex-1 py-2.5 rounded-xl text-xs font-semibold border-2 transition-all"
                 style={type === t
                   ? { borderColor: '#818CF8', background: 'rgba(129,140,248,0.12)', color: '#818CF8' }
                   : { borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94A3B8' }}>
@@ -582,27 +579,26 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
           </div>
           <div>
             <SectionLabel>Cor</SectionLabel>
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="flex gap-2 flex-wrap">
               {CAT_COLORS.map(c => (
-                <button key={c} type="button" onClick={() => setColor(c)} className="w-7 h-7 rounded-full transition-all"
+                <button key={c} type="button" onClick={() => setColor(c)} className="w-8 h-8 rounded-full transition-all"
                   style={{ backgroundColor: c, outline: color === c ? `2px solid ${c}` : 'none', outlineOffset: '2px', transform: color === c ? 'scale(1.2)' : 'scale(1)' }} />
               ))}
             </div>
           </div>
-          <button onClick={addCategory} disabled={saving} className="btn-primary w-full text-sm">
-            {saving ? 'Salvando...' : 'Adicionar'}
+          <button onClick={addCategory} disabled={saving} className="btn-primary w-full">
+            {saving ? 'Salvando...' : '+ Adicionar categoria'}
           </button>
         </div>
-      )}
+      </div>{/* end grid */}
 
       <EditCategoryModal cat={editingCat} onClose={() => setEditingCat(null)} onSaved={onRefresh} />
-
       <ConfirmDialog
         open={!!confirmDelete}
         title="Excluir categoria?"
         message={confirmDelete
           ? confirmDelete.is_default
-            ? `"${confirmDelete.name}" é uma categoria padrão. Transações existentes perderão a categoria. Tem certeza?`
+            ? `"${confirmDelete.name}" é uma categoria padrão. Transações perderão a categoria. Tem certeza?`
             : `A categoria "${confirmDelete.name}" será excluída permanentemente.`
           : ''}
         confirmLabel="Excluir"
@@ -617,7 +613,6 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
 
 function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdId: string; onRefresh: () => void }) {
   const supabase = createClient()
-  const [showForm, setShowForm]     = useState(false)
   const [name, setName]             = useState('')
   const [type, setType]             = useState<Bank['type']>('conta')
   const [color, setColor]           = useState('#818CF8')
@@ -628,7 +623,7 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
   const [confirmDelete, setConfirmDelete] = useState<Bank | null>(null)
   const [editingBank, setEditingBank]     = useState<Bank | null>(null)
 
-  const resetForm = () => { setName(''); setType('conta'); setColor('#818CF8'); setIcon('🏦'); setLimitAmount(0); setDueDay(0); setShowForm(false) }
+  const resetForm = () => { setName(''); setType('conta'); setColor('#818CF8'); setIcon('🏦'); setLimitAmount(0); setDueDay(0) }
 
   const applyPreset = (p: typeof PRESET_BANKS[0]) => {
     setName(p.name); setColor(p.color); setIcon(p.icon); setType(p.type as Bank['type'])
@@ -656,117 +651,111 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
   const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
   return (
-    <div className="space-y-4 max-w-lg">
-      <div className="space-y-2">
-        {banks.map(bank => (
-          <div key={bank.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-              style={{ backgroundColor: bank.color + '20' }}>{bank.icon}</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate" style={textStyle}>{bank.name}</p>
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
-                  style={{ backgroundColor: bank.color + '20', color: bank.color }}>
-                  {BANK_TYPE_LABEL[bank.type]}
-                </span>
-                {bank.limit_amount && <span className="text-[10px]" style={{ color: '#475569' }}>Limite: {brl(bank.limit_amount)}</span>}
-                {bank.due_day && <span className="text-[10px]" style={{ color: '#475569' }}>Venc: dia {bank.due_day}</span>}
-                {bank.is_default && <span className="text-[10px]" style={{ color: '#334155' }}>padrão</span>}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Left — bank list */}
+      <div className="card space-y-3" style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
+        <p className="font-semibold text-sm" style={textStyle}>Bancos e cartões ({banks.length})</p>
+        <div className="space-y-2">
+          {banks.map(bank => (
+            <div key={bank.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                style={{ backgroundColor: bank.color + '20' }}>{bank.icon}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate" style={textStyle}>{bank.name}</p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
+                    style={{ backgroundColor: bank.color + '20', color: bank.color }}>
+                    {BANK_TYPE_LABEL[bank.type]}
+                  </span>
+                  {bank.limit_amount && <span className="text-[10px]" style={{ color: '#475569' }}>Limite: {brl(bank.limit_amount)}</span>}
+                  {bank.due_day && <span className="text-[10px]" style={{ color: '#475569' }}>Venc: dia {bank.due_day}</span>}
+                  {bank.is_default && <span className="text-[10px]" style={{ color: '#334155' }}>padrão</span>}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={() => setEditingBank(bank)}
+                  className="p-1.5 rounded-lg transition-colors"
+                  style={{ color: '#818CF8' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.1)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => setConfirmDelete(bank)}
+                  className="p-1.5 rounded-lg transition-colors"
+                  style={{ color: '#475569' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <button onClick={() => setEditingBank(bank)}
-                className="p-1.5 rounded-lg transition-colors"
-                style={{ color: '#818CF8' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.1)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-              <button onClick={() => setConfirmDelete(bank)}
-                className="p-1.5 rounded-lg transition-colors"
-                style={{ color: '#475569' }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
-                onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}>
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        ))}
-        {banks.length === 0 && <p className="text-sm text-center py-4" style={{ color: '#475569' }}>Nenhum banco cadastrado</p>}
+          ))}
+          {banks.length === 0 && <p className="text-sm text-center py-4" style={{ color: '#475569' }}>Nenhum banco cadastrado</p>}
+        </div>
       </div>
 
-      <button onClick={() => setShowForm(v => !v)}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm transition-all"
-        style={{ border: '2px dashed rgba(129,140,248,0.25)', color: showForm ? '#F87171' : '#818CF8' }}
-        onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(129,140,248,0.5)')}
-        onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(129,140,248,0.25)')}>
-        {showForm ? <ChevronUp className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-        {showForm ? 'Cancelar' : 'Adicionar banco / cartão'}
-      </button>
-
-      {showForm && (
-        <div className="card space-y-4 animate-fade-in" style={{ border: '1px solid rgba(129,140,248,0.2)' }}>
-          <p className="font-semibold text-sm" style={textStyle}>Novo banco / cartão</p>
-          <div>
-            <SectionLabel>Atalhos rápidos</SectionLabel>
-            <div className="flex flex-wrap gap-2">
-              {PRESET_BANKS.map(p => (
-                <button key={p.name} type="button" onClick={() => applyPreset(p)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all"
-                  style={name === p.name
-                    ? { border: `1px solid ${p.color}`, color: p.color, background: p.color + '12' }
-                    : { border: '1px solid rgba(255,255,255,0.08)', color: '#94A3B8', background: 'rgba(255,255,255,0.04)' }}>
-                  <span>{p.icon}</span>{p.name}
-                </button>
-              ))}
-            </div>
+      {/* Right — add form always visible */}
+      <div className="card space-y-4" style={{ border: '1px solid rgba(129,140,248,0.2)' }}>
+        <p className="font-semibold text-sm" style={textStyle}>Novo banco / cartão</p>
+        <div>
+          <SectionLabel>Atalhos rápidos</SectionLabel>
+          <div className="flex flex-wrap gap-2">
+            {PRESET_BANKS.map(p => (
+              <button key={p.name} type="button" onClick={() => applyPreset(p)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all"
+                style={name === p.name
+                  ? { border: `1px solid ${p.color}`, color: p.color, background: p.color + '12' }
+                  : { border: '1px solid rgba(255,255,255,0.08)', color: '#94A3B8', background: 'rgba(255,255,255,0.04)' }}>
+                <span>{p.icon}</span>{p.name}
+              </button>
+            ))}
           </div>
-          <div>
-            <SectionLabel>Nome</SectionLabel>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Nubank, Inter, BB..." className="input" />
-          </div>
-          <div>
-            <SectionLabel>Tipo</SectionLabel>
-            <div className="grid grid-cols-3 gap-2">
-              {BANK_TYPES.map(t => (
-                <button key={t.value} type="button" onClick={() => setType(t.value as Bank['type'])}
-                  className="py-2 rounded-xl text-xs font-medium border-2 transition-all"
-                  style={type === t.value
-                    ? { borderColor: '#818CF8', background: 'rgba(129,140,248,0.12)', color: '#818CF8' }
-                    : { borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94A3B8' }}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {type === 'credito' && (
-            <div className="grid grid-cols-2 gap-3 p-3 rounded-xl" style={{ background: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.15)' }}>
-              <div>
-                <SectionLabel>Limite do cartão</SectionLabel>
-                <NumericFormat value={limitAmount || ''} onValueChange={v => setLimitAmount(v.floatValue || 0)}
-                  thousandSeparator="." decimalSeparator="," decimalScale={2} prefix="R$ " placeholder="R$ 0,00" inputMode="decimal" className="input text-sm" />
-              </div>
-              <div>
-                <SectionLabel>Dia de vencimento</SectionLabel>
-                <input type="number" min={1} max={31} value={dueDay || ''} onChange={e => setDueDay(Number(e.target.value))} placeholder="Ex: 10" className="input text-sm" />
-              </div>
-            </div>
-          )}
-          <div>
-            <SectionLabel>Cor</SectionLabel>
-            <div className="flex gap-2 flex-wrap">
-              {[...PRESET_BANKS.map(p => p.color), '#818CF8', '#6B7280'].map(c => (
-                <button key={c} type="button" onClick={() => setColor(c)} className="w-8 h-8 rounded-full transition-all"
-                  style={{ backgroundColor: c, outline: color === c ? `2px solid ${c}` : 'none', outlineOffset: '2px', transform: color === c ? 'scale(1.2)' : 'scale(1)' }} />
-              ))}
-            </div>
-          </div>
-          <button onClick={addBank} disabled={saving} className="btn-primary w-full text-sm">
-            {saving ? 'Salvando...' : 'Adicionar'}
-          </button>
         </div>
-      )}
+        <div>
+          <SectionLabel>Nome</SectionLabel>
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Nubank, Inter, BB..." className="input" />
+        </div>
+        <div>
+          <SectionLabel>Tipo</SectionLabel>
+          <div className="grid grid-cols-3 gap-2">
+            {BANK_TYPES.map(t => (
+              <button key={t.value} type="button" onClick={() => setType(t.value as Bank['type'])}
+                className="py-2 rounded-xl text-xs font-medium border-2 transition-all"
+                style={type === t.value
+                  ? { borderColor: '#818CF8', background: 'rgba(129,140,248,0.12)', color: '#818CF8' }
+                  : { borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94A3B8' }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {type === 'credito' && (
+          <div className="grid grid-cols-2 gap-3 p-3 rounded-xl" style={{ background: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.15)' }}>
+            <div>
+              <SectionLabel>Limite do cartão</SectionLabel>
+              <NumericFormat value={limitAmount || ''} onValueChange={v => setLimitAmount(v.floatValue || 0)}
+                thousandSeparator="." decimalSeparator="," decimalScale={2} prefix="R$ " placeholder="R$ 0,00" inputMode="decimal" className="input text-sm" />
+            </div>
+            <div>
+              <SectionLabel>Dia de vencimento</SectionLabel>
+              <input type="number" min={1} max={31} value={dueDay || ''} onChange={e => setDueDay(Number(e.target.value))} placeholder="Ex: 10" className="input text-sm" />
+            </div>
+          </div>
+        )}
+        <div>
+          <SectionLabel>Cor</SectionLabel>
+          <div className="flex gap-2 flex-wrap">
+            {[...PRESET_BANKS.map(p => p.color), '#818CF8', '#6B7280'].map(c => (
+              <button key={c} type="button" onClick={() => setColor(c)} className="w-8 h-8 rounded-full transition-all"
+                style={{ backgroundColor: c, outline: color === c ? `2px solid ${c}` : 'none', outlineOffset: '2px', transform: color === c ? 'scale(1.2)' : 'scale(1)' }} />
+            ))}
+          </div>
+        </div>
+        <button onClick={addBank} disabled={saving} className="btn-primary w-full text-sm">
+          {saving ? 'Salvando...' : 'Adicionar'}
+        </button>
+      </div>
 
       <EditBankModal bank={editingBank} onClose={() => setEditingBank(null)} onSaved={onRefresh} />
 
@@ -845,13 +834,13 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
   const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
 
   if (loading) return (
-    <div className="space-y-3 max-w-lg">
-      {[...Array(5)].map((_, i) => <div key={i} className="skeleton h-20 rounded-2xl" />)}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {[...Array(6)].map((_, i) => <div key={i} className="skeleton h-28 rounded-2xl" />)}
     </div>
   )
 
   return (
-    <div className="space-y-4 max-w-lg">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold" style={textStyle}>{format(currentDate, 'MMMM yyyy', { locale: ptBR })}</p>
@@ -862,7 +851,7 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
       {expenseCategories.length === 0 ? (
         <p className="text-sm text-center py-8" style={{ color: '#475569' }}>Adicione categorias de despesa primeiro</p>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {expenseCategories.map(cat => {
             const budget = parseFloat((budgetValues[cat.id] || '0').replace(',', '.')) || 0
             const spent  = spentByCategory[cat.id] || 0

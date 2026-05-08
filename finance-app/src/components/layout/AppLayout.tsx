@@ -23,9 +23,9 @@ const NAV_ITEMS = [
 const MOBILE_NAV = [
   { href: '/',             label: 'Home',       emoji: '🏠', color: '#818CF8' },
   { href: '/transactions', label: 'Gastos',     emoji: '📋', color: '#22D3EE' },
-  { href: '/savings',      label: 'Poupança',   emoji: '💰', color: '#34D399' },
-  { href: '/investments',  label: 'Invest.',    emoji: '📈', color: '#FBBF24' },
+  { href: '/goals',        label: 'Metas',      emoji: '🎯', color: '#F472B6' },
   { href: '/ai',           label: 'Fina IA',    emoji: '🤖', color: '#C084FC' },
+  { href: '/settings',     label: 'Config',     emoji: '⚙️', color: '#94A3B8' },
 ]
 
 interface AppLayoutProps {
@@ -122,12 +122,13 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
       {/* ── Main ──────────────────────────────────────────────────────── */}
       <main className="md:ml-64 min-h-screen">
 
-        {/* Mobile header */}
-        <header className="md:hidden sticky top-0 z-30 px-4 py-3 flex items-center justify-between"
+        {/* Mobile header — padding-top handles iOS notch in Safari/standalone */}
+        <header className="md:hidden sticky top-0 z-30 px-4 py-3 flex items-center justify-between safe-top"
           style={{
-            background: 'rgba(8,8,15,0.9)',
+            background: 'rgba(8,8,15,0.95)',
             borderBottom: '1px solid rgba(129,140,248,0.08)',
             backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
           }}>
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center"
@@ -157,35 +158,40 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
           </div>
         </header>
 
-        <div className="p-4 md:p-6 pb-24 md:pb-6">
+        {/* pb-28 leaves space for bottom nav + iOS home indicator */}
+        <div className="p-4 md:p-8 pb-28 md:pb-8 max-w-screen-2xl mx-auto">
           {children}
         </div>
       </main>
 
       {/* ── Mobile bottom nav ─────────────────────────────────────────── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bottom-nav-safe"
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40"
         style={{
-          background: 'rgba(13,13,26,0.97)',
-          borderTop: '1px solid rgba(129,140,248,0.1)',
-          backdropFilter: 'blur(20px)',
+          background: 'rgba(10,10,20,0.97)',
+          borderTop: '1px solid rgba(129,140,248,0.12)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
         }}>
-        <div className="flex items-center justify-around px-1 py-2">
+        <div className="flex items-center justify-around px-1 pt-1 pb-2">
           {MOBILE_NAV.map(item => {
             const active = pathname === item.href
             return (
               <Link key={item.href} href={item.href}
-                className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-150 min-w-0 flex-1">
-                <span className={`text-xl transition-all duration-150 ${active ? 'scale-115' : 'opacity-50'}`}
-                  style={{ filter: active ? `drop-shadow(0 0 8px ${item.color})` : 'none' }}>
+                className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all duration-150 min-w-0 flex-1 active:scale-95"
+                style={{ background: active ? `${item.color}12` : 'transparent' }}>
+                <span className="text-2xl leading-none transition-all duration-150"
+                  style={{
+                    opacity: active ? 1 : 0.45,
+                    filter: active ? `drop-shadow(0 0 10px ${item.color})` : 'none',
+                    transform: active ? 'scale(1.15)' : 'scale(1)',
+                  }}>
                   {item.emoji}
                 </span>
-                <span className="text-[10px] font-medium truncate transition-colors"
+                <span className="text-[10px] font-semibold mt-0.5"
                   style={{ color: active ? item.color : '#475569' }}>
                   {item.label}
                 </span>
-                {active && (
-                  <div className="w-4 h-0.5 rounded-full mt-0.5" style={{ background: item.color, boxShadow: `0 0 8px ${item.color}` }} />
-                )}
               </Link>
             )
           })}
