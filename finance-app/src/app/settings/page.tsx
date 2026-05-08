@@ -8,7 +8,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { toast } from 'sonner'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Trash2, Plus, Save, AlertTriangle, ChevronDown, ChevronUp, Camera, Pencil } from 'lucide-react'
+import { Trash2, Plus, Save, AlertTriangle, ChevronDown, ChevronUp, Camera, Pencil, X, Eye, EyeOff, Users, KeyRound, ShieldCheck } from 'lucide-react'
 import type { Category, Bank, Budget } from '@/types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -37,8 +37,6 @@ const PRESET_BANKS = [
 const CAT_TYPE_LABEL: Record<string, string> = { receita: 'Receita', despesa: 'Despesa', ambos: 'Ambos' }
 const BANK_TYPE_LABEL: Record<string, string> = { conta: 'Conta', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro', investimento: 'Invest.' }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 const labelStyle = { color: '#64748B' } as const
 const textStyle  = { color: '#F1F5F9' } as const
 
@@ -46,11 +44,205 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={labelStyle}>{children}</p>
 }
 
-function DarkCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+// ─── Edit Category Modal ──────────────────────────────────────────────────────
+
+function EditCategoryModal({ cat, onClose, onSaved }: { cat: Category | null; onClose: () => void; onSaved: () => void }) {
+  const supabase = createClient()
+  const [name, setName]   = useState('')
+  const [type, setType]   = useState<Category['type']>('despesa')
+  const [icon, setIcon]   = useState('🛒')
+  const [color, setColor] = useState('#818CF8')
+  const [saving, setSaving]           = useState(false)
+  const [showIconPicker, setShowIconPicker] = useState(false)
+
+  useEffect(() => {
+    if (cat) { setName(cat.name); setType(cat.type); setIcon(cat.icon); setColor(cat.color) }
+  }, [cat])
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim() || !cat) return
+    setSaving(true)
+    const { error } = await supabase.from('categories').update({ name: name.trim(), type, icon, color }).eq('id', cat.id)
+    setSaving(false)
+    if (error) return void toast.error('Erro ao atualizar')
+    toast.success('Categoria atualizada! ✨')
+    onSaved(); onClose()
+  }
+
+  if (!cat) return null
+
   return (
-    <div className={`rounded-xl px-3 py-2.5 ${className}`}
-      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-      {children}
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full md:max-w-md rounded-t-3xl md:rounded-2xl animate-slide-up"
+        style={{ background: 'rgba(13,13,26,0.99)', border: '1px solid rgba(129,140,248,0.25)' }}>
+        <div className="md:hidden flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
+        </div>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <h2 className="font-bold text-sm" style={textStyle}>Editar categoria</h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl" style={{ color: '#64748B' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        <form onSubmit={save} className="px-5 py-5 space-y-4">
+          {/* Icon + Name */}
+          <div className="flex gap-3">
+            <div className="relative flex-shrink-0">
+              <button type="button" onClick={() => setShowIconPicker(v => !v)}
+                className="w-12 h-12 rounded-xl text-2xl flex items-center justify-center transition-colors"
+                style={{ backgroundColor: color + '20', border: `2px solid ${showIconPicker ? color : 'rgba(255,255,255,0.12)'}` }}>
+                {icon}
+              </button>
+              {showIconPicker && (
+                <div className="absolute top-14 left-0 z-20 rounded-2xl shadow-2xl p-2 w-60 grid grid-cols-7 gap-1"
+                  style={{ background: 'rgba(13,13,26,0.99)', border: '1px solid rgba(129,140,248,0.25)' }}>
+                  {CAT_ICONS.map(em => (
+                    <button key={em} type="button" onClick={() => { setIcon(em); setShowIconPicker(false) }}
+                      className="aspect-square rounded-lg text-lg flex items-center justify-center transition-colors"
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.12)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <input type="text" value={name} onChange={e => setName(e.target.value)}
+              placeholder="Nome da categoria" className="input flex-1" autoFocus />
+          </div>
+
+          {/* Type */}
+          <div className="flex gap-2">
+            {(['despesa','receita','ambos'] as const).map(t => (
+              <button key={t} type="button" onClick={() => setType(t)}
+                className="flex-1 py-2 rounded-xl text-xs font-medium border-2 transition-all"
+                style={type === t
+                  ? { borderColor: color, background: color + '18', color }
+                  : { borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94A3B8' }}>
+                {CAT_TYPE_LABEL[t]}
+              </button>
+            ))}
+          </div>
+
+          {/* Color */}
+          <div>
+            <SectionLabel>Cor</SectionLabel>
+            <div className="flex gap-1.5 flex-wrap">
+              {CAT_COLORS.map(c => (
+                <button key={c} type="button" onClick={() => setColor(c)} className="w-7 h-7 rounded-full transition-all"
+                  style={{ backgroundColor: c, outline: color === c ? `2px solid ${c}` : 'none', outlineOffset: '2px', transform: color === c ? 'scale(1.2)' : 'scale(1)' }} />
+              ))}
+            </div>
+          </div>
+
+          <button type="submit" disabled={saving} className="btn-primary w-full">
+            {saving ? 'Salvando...' : 'Salvar alterações'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Edit Bank Modal ──────────────────────────────────────────────────────────
+
+function EditBankModal({ bank, onClose, onSaved }: { bank: Bank | null; onClose: () => void; onSaved: () => void }) {
+  const supabase = createClient()
+  const [name, setName]           = useState('')
+  const [type, setType]           = useState<Bank['type']>('conta')
+  const [color, setColor]         = useState('#818CF8')
+  const [icon, setIcon]           = useState('🏦')
+  const [limitAmount, setLimitAmount] = useState(0)
+  const [dueDay, setDueDay]       = useState(0)
+  const [saving, setSaving]       = useState(false)
+
+  useEffect(() => {
+    if (bank) {
+      setName(bank.name); setType(bank.type); setColor(bank.color); setIcon(bank.icon)
+      setLimitAmount(bank.limit_amount || 0); setDueDay(bank.due_day || 0)
+    }
+  }, [bank])
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim() || !bank) return
+    setSaving(true)
+    const payload: any = { name: name.trim(), type, color, icon }
+    if (type === 'credito') { payload.limit_amount = limitAmount || null; payload.due_day = dueDay || null }
+    else { payload.limit_amount = null; payload.due_day = null }
+    const { error } = await supabase.from('banks').update(payload).eq('id', bank.id)
+    setSaving(false)
+    if (error) return void toast.error('Erro ao atualizar')
+    toast.success('Banco atualizado! ✨')
+    onSaved(); onClose()
+  }
+
+  if (!bank) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full md:max-w-md rounded-t-3xl md:rounded-2xl animate-slide-up"
+        style={{ background: 'rgba(13,13,26,0.99)', border: '1px solid rgba(129,140,248,0.25)' }}>
+        <div className="md:hidden flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
+        </div>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <h2 className="font-bold text-sm" style={textStyle}>Editar banco / cartão</h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl" style={{ color: '#64748B' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        <form onSubmit={save} className="px-5 py-5 space-y-4 max-h-[80dvh] overflow-y-auto">
+          <div>
+            <SectionLabel>Nome</SectionLabel>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" autoFocus />
+          </div>
+
+          <div>
+            <SectionLabel>Tipo</SectionLabel>
+            <div className="grid grid-cols-3 gap-2">
+              {BANK_TYPES.map(t => (
+                <button key={t.value} type="button" onClick={() => setType(t.value as Bank['type'])}
+                  className="py-2 rounded-xl text-xs font-medium border-2 transition-all"
+                  style={type === t.value
+                    ? { borderColor: color, background: color + '18', color }
+                    : { borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94A3B8' }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {type === 'credito' && (
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-xl" style={{ background: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.15)' }}>
+              <div>
+                <SectionLabel>Limite</SectionLabel>
+                <NumericFormat value={limitAmount || ''} onValueChange={v => setLimitAmount(v.floatValue || 0)}
+                  thousandSeparator="." decimalSeparator="," decimalScale={2} prefix="R$ " placeholder="R$ 0,00" inputMode="decimal" className="input text-sm" />
+              </div>
+              <div>
+                <SectionLabel>Dia vencimento</SectionLabel>
+                <input type="number" min={1} max={31} value={dueDay || ''} onChange={e => setDueDay(Number(e.target.value))} placeholder="Ex: 10" className="input text-sm" />
+              </div>
+            </div>
+          )}
+
+          <div>
+            <SectionLabel>Cor</SectionLabel>
+            <div className="flex gap-2 flex-wrap">
+              {[...PRESET_BANKS.map(p => p.color), '#818CF8', '#6B7280'].map(c => (
+                <button key={c} type="button" onClick={() => setColor(c)} className="w-8 h-8 rounded-full transition-all"
+                  style={{ backgroundColor: c, outline: color === c ? `2px solid ${c}` : 'none', outlineOffset: '2px', transform: color === c ? 'scale(1.2)' : 'scale(1)' }} />
+              ))}
+            </div>
+          </div>
+
+          <button type="submit" disabled={saving} className="btn-primary w-full">
+            {saving ? 'Salvando...' : 'Salvar alterações'}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
@@ -59,13 +251,22 @@ function DarkCard({ children, className = '' }: { children: React.ReactNode; cla
 
 function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void }) {
   const supabase = createClient()
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [name, setName]       = useState(profile?.name || '')
-  const [color, setColor]     = useState(profile?.avatar_color || '#818CF8')
-  const [emoji, setEmoji]     = useState(profile?.avatar_emoji || '👤')
+  const fileRef  = useRef<HTMLInputElement>(null)
+
+  const [name, setName]           = useState(profile?.name || '')
+  const [color, setColor]         = useState(profile?.avatar_color || '#818CF8')
+  const [emoji, setEmoji]         = useState(profile?.avatar_emoji || '👤')
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '')
-  const [saving, setSaving]   = useState(false)
+  const [saving, setSaving]       = useState(false)
   const [uploading, setUploading] = useState(false)
+
+  // Password change
+  const [newPwd, setNewPwd]       = useState('')
+  const [showPwd, setShowPwd]     = useState(false)
+  const [changingPwd, setChangingPwd] = useState(false)
+
+  // Members
+  const [members, setMembers]     = useState<any[]>([])
 
   useEffect(() => {
     setName(profile?.name || '')
@@ -73,6 +274,13 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
     setEmoji(profile?.avatar_emoji || '👤')
     setAvatarUrl(profile?.avatar_url || '')
   }, [profile])
+
+  useEffect(() => {
+    if (!profile?.household_id) return
+    supabase.from('profiles').select('id, name, avatar_color, avatar_emoji, avatar_url, created_at')
+      .eq('household_id', profile.household_id)
+      .then(({ data }) => setMembers(data || []))
+  }, [profile?.household_id])
 
   const uploadPhoto = async (file: File) => {
     if (file.size > 2 * 1024 * 1024) return void toast.error('Foto muito grande! Máximo 2MB')
@@ -94,7 +302,7 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
     } finally { setUploading(false) }
   }
 
-  const save = async () => {
+  const saveProfile = async () => {
     if (!name.trim()) return void toast.error('O nome não pode ficar vazio')
     setSaving(true)
     const { error } = await supabase.from('profiles').update({ name: name.trim(), avatar_color: color, avatar_emoji: emoji }).eq('id', profile.id)
@@ -104,23 +312,27 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
     onSaved()
   }
 
+  const changePassword = async () => {
+    if (newPwd.length < 6) return void toast.error('Senha mínima de 6 caracteres')
+    setChangingPwd(true)
+    const { error } = await supabase.auth.updateUser({ password: newPwd })
+    setChangingPwd(false)
+    if (error) return void toast.error(error.message || 'Erro ao alterar senha')
+    toast.success('Senha alterada com sucesso! 🔑')
+    setNewPwd('')
+  }
+
   return (
     <div className="space-y-6 max-w-sm">
-      {/* Preview com foto */}
+      {/* Avatar preview */}
       <div className="flex items-center gap-4 p-4 rounded-2xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
         <div className="relative flex-shrink-0">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl overflow-hidden"
-            style={{ backgroundColor: color }}>
-            {avatarUrl
-              ? <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
-              : emoji}
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl overflow-hidden" style={{ backgroundColor: color }}>
+            {avatarUrl ? <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" /> : emoji}
           </div>
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center transition-opacity"
-            style={{ background: '#818CF8', border: '2px solid #08080F' }}
-            title="Alterar foto">
+          <button onClick={() => fileRef.current?.click()} disabled={uploading}
+            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center"
+            style={{ background: '#818CF8', border: '2px solid #08080F' }}>
             {uploading ? <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" /> : <Camera className="w-3 h-3 text-white" />}
           </button>
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
@@ -133,18 +345,18 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
         </div>
       </div>
 
-      {/* Nome */}
+      {/* Name */}
       <div>
         <SectionLabel>Seu nome</SectionLabel>
         <input type="text" value={name} onChange={e => setName(e.target.value)} className="input" placeholder="Jonatas ou Thuany" />
       </div>
 
-      {/* Cor */}
+      {/* Color */}
       <div>
         <SectionLabel>Cor do avatar</SectionLabel>
         <div className="flex gap-2 flex-wrap">
           {AVATAR_COLORS.map(c => (
-            <button key={c} onClick={() => setColor(c)} className="w-9 h-9 rounded-full transition-all duration-150"
+            <button key={c} onClick={() => setColor(c)} className="w-9 h-9 rounded-full transition-all"
               style={{ backgroundColor: c, outline: color === c ? `3px solid ${c}` : 'none', outlineOffset: '3px', transform: color === c ? 'scale(1.2)' : 'scale(1)' }} />
           ))}
         </div>
@@ -156,7 +368,7 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
         <div className="grid grid-cols-8 gap-1.5">
           {AVATAR_EMOJIS.map(em => (
             <button key={em} onClick={() => setEmoji(em)}
-              className="aspect-square rounded-xl text-xl flex items-center justify-center transition-all duration-150"
+              className="aspect-square rounded-xl text-xl flex items-center justify-center transition-all"
               style={emoji === em ? { outline: `2px solid ${color}`, outlineOffset: '2px', backgroundColor: color + '20' } : { background: 'rgba(255,255,255,0.04)' }}>
               {em}
             </button>
@@ -164,10 +376,83 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
         </div>
       </div>
 
-      <button onClick={save} disabled={saving} className="btn-primary w-full flex items-center justify-center gap-2">
+      <button onClick={saveProfile} disabled={saving} className="btn-primary w-full flex items-center justify-center gap-2">
         <Save className="w-4 h-4" />
         {saving ? 'Salvando...' : 'Salvar perfil'}
       </button>
+
+      {/* Divider */}
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }} />
+
+      {/* Password change */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <KeyRound className="w-4 h-4" style={{ color: '#818CF8' }} />
+          <p className="font-semibold text-sm" style={textStyle}>Alterar senha</p>
+        </div>
+        <div className="relative">
+          <input
+            type={showPwd ? 'text' : 'password'}
+            value={newPwd}
+            onChange={e => setNewPwd(e.target.value)}
+            placeholder="Nova senha (mínimo 6 caracteres)"
+            className="input pr-10"
+          />
+          <button type="button" onClick={() => setShowPwd(v => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: '#64748B' }}>
+            {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+        <button onClick={changePassword} disabled={changingPwd || newPwd.length < 6}
+          className="mt-2 w-full py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-40"
+          style={{ background: 'rgba(129,140,248,0.12)', border: '1px solid rgba(129,140,248,0.3)', color: '#818CF8' }}>
+          {changingPwd ? 'Alterando...' : '🔑 Alterar senha'}
+        </button>
+      </div>
+
+      {/* Divider */}
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }} />
+
+      {/* Household members */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Users className="w-4 h-4" style={{ color: '#34D399' }} />
+          <p className="font-semibold text-sm" style={textStyle}>Membros do casal</p>
+        </div>
+        <div className="space-y-2">
+          {members.map(m => (
+            <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 overflow-hidden"
+                style={{ backgroundColor: m.avatar_color }}>
+                {m.avatar_url
+                  ? <img src={m.avatar_url} alt={m.name} className="w-full h-full object-cover" />
+                  : m.avatar_emoji}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate" style={textStyle}>{m.name}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <ShieldCheck className="w-3 h-3" style={{ color: '#34D399' }} />
+                  <p className="text-[10px]" style={{ color: '#34D399' }}>
+                    {m.id === profile?.id ? 'Você · Membro' : 'Membro'}
+                  </p>
+                </div>
+              </div>
+              {m.id === profile?.id && (
+                <span className="text-[10px] px-2 py-1 rounded-lg" style={{ background: 'rgba(129,140,248,0.1)', color: '#818CF8' }}>
+                  Você
+                </span>
+              )}
+            </div>
+          ))}
+          {members.length === 0 && (
+            <p className="text-sm text-center py-4" style={{ color: '#475569' }}>Carregando membros...</p>
+          )}
+        </div>
+        <p className="text-[10px] mt-2" style={{ color: '#334155' }}>
+          Para convidar alguém ao household, entre em contato com o suporte.
+        </p>
+      </div>
     </div>
   )
 }
@@ -176,39 +461,25 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
 
 function CategoriesTab({ categories, householdId, onRefresh }: { categories: Category[]; householdId: string; onRefresh: () => void }) {
   const supabase = createClient()
-  const [showForm, setShowForm]             = useState(false)
-  const [editingCat, setEditingCat]         = useState<Category | null>(null)
-  const [name, setName]                     = useState('')
-  const [type, setType]                     = useState<'receita' | 'despesa' | 'ambos'>('despesa')
-  const [icon, setIcon]                     = useState('🛒')
-  const [color, setColor]                   = useState('#818CF8')
-  const [saving, setSaving]                 = useState(false)
+  const [showForm, setShowForm]         = useState(false)
+  const [name, setName]                 = useState('')
+  const [type, setType]                 = useState<Category['type']>('despesa')
+  const [icon, setIcon]                 = useState('🛒')
+  const [color, setColor]               = useState('#818CF8')
+  const [saving, setSaving]             = useState(false)
   const [showIconPicker, setShowIconPicker] = useState(false)
-  const [confirmDelete, setConfirmDelete]   = useState<Category | null>(null)
+  const [editingCat, setEditingCat]     = useState<Category | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<Category | null>(null)
 
-  const resetForm = () => {
-    setName(''); setType('despesa'); setIcon('🛒'); setColor('#818CF8')
-    setShowForm(false); setShowIconPicker(false); setEditingCat(null)
-  }
+  const resetForm = () => { setName(''); setType('despesa'); setIcon('🛒'); setColor('#818CF8'); setShowForm(false); setShowIconPicker(false) }
 
-  const startEdit = (cat: Category) => {
-    setEditingCat(cat); setName(cat.name); setType(cat.type); setIcon(cat.icon); setColor(cat.color)
-    setShowForm(true); setShowIconPicker(false)
-  }
-
-  const saveCategory = async () => {
+  const addCategory = async () => {
     if (!name.trim()) return void toast.error('Digite um nome')
     setSaving(true)
-    if (editingCat) {
-      const { error } = await supabase.from('categories').update({ name: name.trim(), type, icon, color }).eq('id', editingCat.id)
-      if (error) toast.error('Erro ao atualizar')
-      else { toast.success('Categoria atualizada!'); resetForm(); onRefresh() }
-    } else {
-      const { error } = await supabase.from('categories').insert({ household_id: householdId, name: name.trim(), type, icon, color, is_default: false })
-      if (error) toast.error('Erro ao adicionar')
-      else { toast.success('Categoria adicionada!'); resetForm(); onRefresh() }
-    }
+    const { error } = await supabase.from('categories').insert({ household_id: householdId, name: name.trim(), type, icon, color, is_default: false })
     setSaving(false)
+    if (error) return void toast.error('Erro ao adicionar')
+    toast.success('Categoria adicionada!'); resetForm(); onRefresh()
   }
 
   const doDelete = async () => {
@@ -242,22 +513,20 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
                 </div>
                 <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button onClick={() => startEdit(cat)}
+                  <button onClick={() => setEditingCat(cat)}
                     className="p-1.5 rounded-lg transition-colors"
                     style={{ color: '#818CF8' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.1)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
-                  {!cat.is_default && (
-                    <button onClick={() => setConfirmDelete(cat)}
-                      className="p-1.5 rounded-lg transition-colors"
-                      style={{ color: '#475569' }}
-                      onMouseEnter={e => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
-                      onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button onClick={() => setConfirmDelete(cat)}
+                    className="p-1.5 rounded-lg transition-colors"
+                    style={{ color: '#475569' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             ))}
@@ -265,8 +534,8 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
         </div>
       ))}
 
-      <button onClick={() => { resetForm(); setShowForm(v => !v) }}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm transition-all duration-150"
+      <button onClick={() => setShowForm(v => !v)}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm transition-all"
         style={{ border: '2px dashed rgba(129,140,248,0.25)', color: showForm ? '#F87171' : '#818CF8' }}
         onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(129,140,248,0.5)')}
         onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(129,140,248,0.25)')}>
@@ -276,12 +545,10 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
 
       {showForm && (
         <div className="card space-y-4 animate-fade-in" style={{ border: '1px solid rgba(129,140,248,0.2)' }}>
-          <p className="font-semibold text-sm" style={textStyle}>
-            {editingCat ? `Editar: ${editingCat.name}` : 'Nova categoria'}
-          </p>
+          <p className="font-semibold text-sm" style={textStyle}>Nova categoria</p>
           <div className="flex gap-2">
             <div className="relative">
-              <button onClick={() => setShowIconPicker(v => !v)}
+              <button type="button" onClick={() => setShowIconPicker(v => !v)}
                 className="w-12 h-10 rounded-xl text-xl flex items-center justify-center transition-colors"
                 style={{ backgroundColor: color + '20', border: `2px solid ${showIconPicker ? color : 'rgba(255,255,255,0.1)'}` }}>
                 {icon}
@@ -290,7 +557,7 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
                 <div className="absolute top-12 left-0 z-20 rounded-2xl shadow-2xl p-2 w-56 grid grid-cols-7 gap-1"
                   style={{ background: 'rgba(13,13,26,0.99)', border: '1px solid rgba(129,140,248,0.25)' }}>
                   {CAT_ICONS.map(em => (
-                    <button key={em} onClick={() => { setIcon(em); setShowIconPicker(false) }}
+                    <button key={em} type="button" onClick={() => { setIcon(em); setShowIconPicker(false) }}
                       className="aspect-square rounded-lg text-lg flex items-center justify-center transition-colors"
                       onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.1)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
@@ -304,8 +571,8 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
           </div>
           <div className="flex gap-2">
             {(['despesa','receita','ambos'] as const).map(t => (
-              <button key={t} onClick={() => setType(t)}
-                className="flex-1 py-2 rounded-xl text-xs font-medium border-2 transition-all duration-150"
+              <button key={t} type="button" onClick={() => setType(t)}
+                className="flex-1 py-2 rounded-xl text-xs font-medium border-2 transition-all"
                 style={type === t
                   ? { borderColor: '#818CF8', background: 'rgba(129,140,248,0.12)', color: '#818CF8' }
                   : { borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94A3B8' }}>
@@ -317,21 +584,27 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
             <SectionLabel>Cor</SectionLabel>
             <div className="flex gap-1.5 flex-wrap">
               {CAT_COLORS.map(c => (
-                <button key={c} onClick={() => setColor(c)} className="w-7 h-7 rounded-full transition-all duration-150"
+                <button key={c} type="button" onClick={() => setColor(c)} className="w-7 h-7 rounded-full transition-all"
                   style={{ backgroundColor: c, outline: color === c ? `2px solid ${c}` : 'none', outlineOffset: '2px', transform: color === c ? 'scale(1.2)' : 'scale(1)' }} />
               ))}
             </div>
           </div>
-          <button onClick={saveCategory} disabled={saving} className="btn-primary w-full text-sm">
-            {saving ? 'Salvando...' : editingCat ? 'Salvar alterações' : 'Adicionar'}
+          <button onClick={addCategory} disabled={saving} className="btn-primary w-full text-sm">
+            {saving ? 'Salvando...' : 'Adicionar'}
           </button>
         </div>
       )}
 
+      <EditCategoryModal cat={editingCat} onClose={() => setEditingCat(null)} onSaved={onRefresh} />
+
       <ConfirmDialog
         open={!!confirmDelete}
         title="Excluir categoria?"
-        message={confirmDelete ? `A categoria "${confirmDelete.name}" será excluída. Isso pode falhar se houver transações vinculadas.` : ''}
+        message={confirmDelete
+          ? confirmDelete.is_default
+            ? `"${confirmDelete.name}" é uma categoria padrão. Transações existentes perderão a categoria. Tem certeza?`
+            : `A categoria "${confirmDelete.name}" será excluída permanentemente.`
+          : ''}
         confirmLabel="Excluir"
         onConfirm={doDelete}
         onCancel={() => setConfirmDelete(null)}
@@ -353,34 +626,23 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
   const [dueDay, setDueDay]         = useState(0)
   const [saving, setSaving]         = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<Bank | null>(null)
-  const [editingBank, setEditingBank] = useState<Bank | null>(null)
+  const [editingBank, setEditingBank]     = useState<Bank | null>(null)
 
-  const resetForm = () => { setName(''); setType('conta'); setColor('#818CF8'); setIcon('🏦'); setLimitAmount(0); setDueDay(0); setShowForm(false); setEditingBank(null) }
+  const resetForm = () => { setName(''); setType('conta'); setColor('#818CF8'); setIcon('🏦'); setLimitAmount(0); setDueDay(0); setShowForm(false) }
 
   const applyPreset = (p: typeof PRESET_BANKS[0]) => {
     setName(p.name); setColor(p.color); setIcon(p.icon); setType(p.type as Bank['type'])
   }
 
-  const startEdit = (bank: Bank) => {
-    setEditingBank(bank); setName(bank.name); setType(bank.type); setColor(bank.color); setIcon(bank.icon)
-    setLimitAmount(bank.limit_amount || 0); setDueDay(bank.due_day || 0); setShowForm(true)
-  }
-
-  const saveBank = async () => {
+  const addBank = async () => {
     if (!name.trim()) return void toast.error('Digite um nome')
     setSaving(true)
-    const payload: any = { name: name.trim(), type, color, icon }
+    const payload: any = { household_id: householdId, name: name.trim(), type, color, icon, is_default: false }
     if (type === 'credito') { payload.limit_amount = limitAmount || null; payload.due_day = dueDay || null }
-    if (editingBank) {
-      const { error } = await supabase.from('banks').update(payload).eq('id', editingBank.id)
-      if (error) toast.error('Erro ao atualizar')
-      else { toast.success('Banco atualizado!'); resetForm(); onRefresh() }
-    } else {
-      const { error } = await supabase.from('banks').insert({ household_id: householdId, ...payload, is_default: false })
-      if (error) toast.error('Erro ao adicionar')
-      else { toast.success('Banco adicionado!'); resetForm(); onRefresh() }
-    }
+    const { error } = await supabase.from('banks').insert(payload)
     setSaving(false)
+    if (error) return void toast.error('Erro ao adicionar')
+    toast.success('Banco adicionado!'); resetForm(); onRefresh()
   }
 
   const doDelete = async () => {
@@ -403,7 +665,7 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
               style={{ backgroundColor: bank.color + '20' }}>{bank.icon}</div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate" style={textStyle}>{bank.name}</p>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
                   style={{ backgroundColor: bank.color + '20', color: bank.color }}>
                   {BANK_TYPE_LABEL[bank.type]}
@@ -413,31 +675,29 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
                 {bank.is_default && <span className="text-[10px]" style={{ color: '#334155' }}>padrão</span>}
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              <button onClick={() => startEdit(bank)}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button onClick={() => setEditingBank(bank)}
                 className="p-1.5 rounded-lg transition-colors"
                 style={{ color: '#818CF8' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.1)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                 <Pencil className="w-3.5 h-3.5" />
               </button>
-              {!bank.is_default && (
-                <button onClick={() => setConfirmDelete(bank)}
-                  className="p-1.5 rounded-lg transition-colors"
-                  style={{ color: '#475569' }}
-                  onMouseEnter={e => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
-                  onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              )}
+              <button onClick={() => setConfirmDelete(bank)}
+                className="p-1.5 rounded-lg transition-colors"
+                style={{ color: '#475569' }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         ))}
         {banks.length === 0 && <p className="text-sm text-center py-4" style={{ color: '#475569' }}>Nenhum banco cadastrado</p>}
       </div>
 
-      <button onClick={() => { resetForm(); setShowForm(v => !v) }}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm transition-all duration-150"
+      <button onClick={() => setShowForm(v => !v)}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm transition-all"
         style={{ border: '2px dashed rgba(129,140,248,0.25)', color: showForm ? '#F87171' : '#818CF8' }}
         onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(129,140,248,0.5)')}
         onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(129,140,248,0.25)')}>
@@ -447,38 +707,31 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
 
       {showForm && (
         <div className="card space-y-4 animate-fade-in" style={{ border: '1px solid rgba(129,140,248,0.2)' }}>
-          <p className="font-semibold text-sm" style={textStyle}>
-            {editingBank ? `Editar: ${editingBank.name}` : 'Novo banco / cartão'}
-          </p>
-
-          {!editingBank && (
-            <div>
-              <SectionLabel>Atalhos rápidos</SectionLabel>
-              <div className="flex flex-wrap gap-2">
-                {PRESET_BANKS.map(p => (
-                  <button key={p.name} onClick={() => applyPreset(p)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-150"
-                    style={name === p.name
-                      ? { borderColor: p.color, color: p.color, border: `1px solid ${p.color}`, background: p.color + '12' }
-                      : { border: '1px solid rgba(255,255,255,0.08)', color: '#94A3B8', background: 'rgba(255,255,255,0.04)' }}>
-                    <span>{p.icon}</span>{p.name}
-                  </button>
-                ))}
-              </div>
+          <p className="font-semibold text-sm" style={textStyle}>Novo banco / cartão</p>
+          <div>
+            <SectionLabel>Atalhos rápidos</SectionLabel>
+            <div className="flex flex-wrap gap-2">
+              {PRESET_BANKS.map(p => (
+                <button key={p.name} type="button" onClick={() => applyPreset(p)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all"
+                  style={name === p.name
+                    ? { border: `1px solid ${p.color}`, color: p.color, background: p.color + '12' }
+                    : { border: '1px solid rgba(255,255,255,0.08)', color: '#94A3B8', background: 'rgba(255,255,255,0.04)' }}>
+                  <span>{p.icon}</span>{p.name}
+                </button>
+              ))}
             </div>
-          )}
-
+          </div>
           <div>
             <SectionLabel>Nome</SectionLabel>
             <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Nubank, Inter, BB..." className="input" />
           </div>
-
           <div>
             <SectionLabel>Tipo</SectionLabel>
             <div className="grid grid-cols-3 gap-2">
               {BANK_TYPES.map(t => (
-                <button key={t.value} onClick={() => setType(t.value as Bank['type'])}
-                  className="py-2 rounded-xl text-xs font-medium border-2 transition-all duration-150"
+                <button key={t.value} type="button" onClick={() => setType(t.value as Bank['type'])}
+                  className="py-2 rounded-xl text-xs font-medium border-2 transition-all"
                   style={type === t.value
                     ? { borderColor: '#818CF8', background: 'rgba(129,140,248,0.12)', color: '#818CF8' }
                     : { borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#94A3B8' }}>
@@ -487,43 +740,35 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
               ))}
             </div>
           </div>
-
-          {/* Credit card specific fields */}
           {type === 'credito' && (
             <div className="grid grid-cols-2 gap-3 p-3 rounded-xl" style={{ background: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.15)' }}>
               <div>
                 <SectionLabel>Limite do cartão</SectionLabel>
-                <NumericFormat
-                  value={limitAmount || ''}
-                  onValueChange={v => setLimitAmount(v.floatValue || 0)}
-                  thousandSeparator="." decimalSeparator="," decimalScale={2}
-                  prefix="R$ " placeholder="R$ 0,00" inputMode="decimal"
-                  className="input text-sm"
-                />
+                <NumericFormat value={limitAmount || ''} onValueChange={v => setLimitAmount(v.floatValue || 0)}
+                  thousandSeparator="." decimalSeparator="," decimalScale={2} prefix="R$ " placeholder="R$ 0,00" inputMode="decimal" className="input text-sm" />
               </div>
               <div>
                 <SectionLabel>Dia de vencimento</SectionLabel>
-                <input type="number" min={1} max={31} value={dueDay || ''} onChange={e => setDueDay(Number(e.target.value))}
-                  placeholder="Ex: 10" className="input text-sm" />
+                <input type="number" min={1} max={31} value={dueDay || ''} onChange={e => setDueDay(Number(e.target.value))} placeholder="Ex: 10" className="input text-sm" />
               </div>
             </div>
           )}
-
           <div>
             <SectionLabel>Cor</SectionLabel>
             <div className="flex gap-2 flex-wrap">
               {[...PRESET_BANKS.map(p => p.color), '#818CF8', '#6B7280'].map(c => (
-                <button key={c} onClick={() => setColor(c)} className="w-8 h-8 rounded-full transition-all duration-150"
+                <button key={c} type="button" onClick={() => setColor(c)} className="w-8 h-8 rounded-full transition-all"
                   style={{ backgroundColor: c, outline: color === c ? `2px solid ${c}` : 'none', outlineOffset: '2px', transform: color === c ? 'scale(1.2)' : 'scale(1)' }} />
               ))}
             </div>
           </div>
-
-          <button onClick={saveBank} disabled={saving} className="btn-primary w-full text-sm">
-            {saving ? 'Salvando...' : editingBank ? 'Salvar alterações' : 'Adicionar'}
+          <button onClick={addBank} disabled={saving} className="btn-primary w-full text-sm">
+            {saving ? 'Salvando...' : 'Adicionar'}
           </button>
         </div>
       )}
+
+      <EditBankModal bank={editingBank} onClose={() => setEditingBank(null)} onSaved={onRefresh} />
 
       <ConfirmDialog
         open={!!confirmDelete}
@@ -544,7 +789,7 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
   const [currentDate] = useState(new Date())
   const [budgetValues, setBudgetValues] = useState<Record<string, string>>({})
   const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({})
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving]   = useState(false)
   const [loading, setLoading] = useState(true)
   const [confirmClear, setConfirmClear] = useState<Category | null>(null)
 
@@ -572,12 +817,9 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
 
   const clearBudget = async () => {
     if (!confirmClear) return
-    await supabase.from('budgets')
-      .delete()
-      .eq('household_id', householdId)
-      .eq('category_id', confirmClear.id)
-      .eq('month', currentMonth)
-      .eq('year', currentYear)
+    await supabase.from('budgets').delete()
+      .eq('household_id', householdId).eq('category_id', confirmClear.id)
+      .eq('month', currentMonth).eq('year', currentYear)
     setBudgetValues(prev => { const next = { ...prev }; delete next[confirmClear.id]; return next })
     toast.success('Orçamento removido')
     setConfirmClear(null)
@@ -656,14 +898,12 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
                       className="w-28 text-right text-sm font-semibold rounded-xl px-2.5 py-1.5 focus:outline-none transition-all"
                       style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#F1F5F9' }}
                     />
-                    {budgetValues[cat.id] && Number(budgetValues[cat.id].replace(',', '.')) > 0 && (
-                      <button
-                        onClick={() => setConfirmClear(cat)}
+                    {budget > 0 && (
+                      <button onClick={() => setConfirmClear(cat)}
                         className="p-1.5 rounded-lg transition-colors flex-shrink-0"
                         style={{ color: '#475569' }}
                         onMouseEnter={e => { e.currentTarget.style.color = '#F87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)' }}
-                        onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}
-                        title="Remover orçamento">
+                        onMouseLeave={e => { e.currentTarget.style.color = '#475569'; e.currentTarget.style.background = 'transparent' }}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
@@ -712,11 +952,11 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 
 export default function SettingsPage() {
   const supabase = createClient()
-  const [activeTab, setActiveTab] = useState<Tab>('profile')
-  const [profile, setProfile]     = useState<any>(null)
+  const [activeTab, setActiveTab]   = useState<Tab>('profile')
+  const [profile, setProfile]       = useState<any>(null)
   const [categories, setCategories] = useState<Category[]>([])
-  const [banks, setBanks]         = useState<Bank[]>([])
-  const [loading, setLoading]     = useState(true)
+  const [banks, setBanks]           = useState<Bank[]>([])
+  const [loading, setLoading]       = useState(true)
 
   const fetchAll = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -749,7 +989,7 @@ export default function SettingsPage() {
           style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}>
           {TABS.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-150 min-w-fit"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-sm font-medium whitespace-nowrap transition-all min-w-fit"
               style={activeTab === tab.id
                 ? { background: 'rgba(129,140,248,0.18)', color: '#818CF8', border: '1px solid rgba(129,140,248,0.3)' }
                 : { color: '#64748B' }}>
