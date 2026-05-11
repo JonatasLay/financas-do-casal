@@ -36,6 +36,9 @@ export interface Transaction {
   description: string; amount: number; type: TransactionType
   category_id: string | null; bank_id: string | null; status: TransactionStatus
   notes: string | null; is_recurring: boolean; month: string; year: number; created_at: string
+  recurring_group_id?: string | null
+  recurring_index?: number | null
+  recurring_total?: number | null
   responsible_party?: ResponsibleParty
   is_reimbursed?: boolean
   payment_method?: PaymentMethod

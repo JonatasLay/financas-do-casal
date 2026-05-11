@@ -164,7 +164,11 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
     try {
       const maxInstallments = isBoletoExpense ? 60 : 36
       const safeInstallments = canGenerateMonthlyRows ? Math.max(1, Math.min(maxInstallments, installments || 1)) : 1
-      const divideAmount = isCreditExpense && safeInstallments > 1
+      const startDate = new Date(`${date}T12:00:00`)
+      const recurringMonths = isRecurring && !isEdit ? 12 - startDate.getMonth() : 1
+      const rowCount = isRecurring && !isEdit ? recurringMonths : safeInstallments
+      const recurringGroupId = isRecurring && !isEdit && rowCount > 1 ? crypto.randomUUID() : null
+      const divideAmount = isCreditExpense && !isRecurring && safeInstallments > 1
       const perInstallmentAmount = divideAmount
         ? Number((amountFloat / safeInstallments).toFixed(2))
         : amountFloat
@@ -185,31 +189,50 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       }
 
       if (isEdit && editTransaction) {
-        const { error } = await supabase.from('transactions').update(payload).eq('id', editTransaction.id)
+        const editPayload = {
+          ...payload,
+          recurring_group_id: isRecurring ? editTransaction.recurring_group_id || null : null,
+          recurring_index: isRecurring ? editTransaction.recurring_index || null : null,
+          recurring_total: isRecurring ? editTransaction.recurring_total || null : null,
+        }
+        const { error } = await supabase.from('transactions').update(editPayload).eq('id', editTransaction.id)
         if (error) throw error
+        if (!isRecurring && editTransaction.recurring_group_id) {
+          const { error: deleteFutureError } = await supabase
+            .from('transactions')
+            .delete()
+            .eq('recurring_group_id', editTransaction.recurring_group_id)
+            .gt('date', editTransaction.date)
+          if (deleteFutureError) throw deleteFutureError
+        }
         toast.success('Lançamento atualizado! ✏️')
       } else {
-        const rows = Array.from({ length: safeInstallments }, (_, index) => {
+        const rows = Array.from({ length: rowCount }, (_, index) => {
           const installmentNumber = index + 1
-          const amount = divideAmount && installmentNumber === safeInstallments
-            ? Number((amountFloat - perInstallmentAmount * (safeInstallments - 1)).toFixed(2))
+          const amount = divideAmount && installmentNumber === rowCount
+            ? Number((amountFloat - perInstallmentAmount * (rowCount - 1)).toFixed(2))
             : perInstallmentAmount
           const installmentLabel = isBoletoExpense ? 'Boleto' : 'Parcela'
 
           return {
             ...payload,
             amount,
-            date: format(addMonths(new Date(`${date}T12:00:00`), index), 'yyyy-MM-dd'),
-            description: safeInstallments > 1
-              ? `${description.trim()} (${installmentLabel} ${String(installmentNumber).padStart(2, '0')}/${String(safeInstallments).padStart(2, '0')})`
+            date: format(addMonths(startDate, index), 'yyyy-MM-dd'),
+            description: !isRecurring && rowCount > 1
+              ? `${description.trim()} (${installmentLabel} ${String(installmentNumber).padStart(2, '0')}/${String(rowCount).padStart(2, '0')})`
               : description.trim(),
+            ...(recurringGroupId ? {
+              recurring_group_id: recurringGroupId,
+              recurring_index: installmentNumber,
+              recurring_total: rowCount,
+            } : {}),
             household_id: profile.household_id,
             created_by: profile.id,
           }
         })
         const { error } = await supabase.from('transactions').insert(rows)
         if (error) throw error
-        toast.success(safeInstallments > 1 ? `${safeInstallments} parcelas salvas!` : 'Lançamento salvo! 🎉')
+        toast.success(isRecurring && rowCount > 1 ? `${rowCount} lançamentos recorrentes salvos!` : rowCount > 1 ? `${rowCount} parcelas salvas!` : 'Lançamento salvo! 🎉')
       }
 
       onSuccess()
@@ -554,7 +577,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
               className="w-4 h-4 accent-indigo-500 flex-shrink-0" />
             <div>
               <p className="text-sm font-medium" style={{ color: textC }}>Lançamento recorrente 🔄</p>
-              <p className="text-xs" style={{ color: '#475569' }}>Repete todo mês no mesmo dia</p>
+              <p className="text-xs" style={{ color: '#475569' }}>Repete todo mês no mesmo dia até dezembro</p>
             </div>
           </label>
 

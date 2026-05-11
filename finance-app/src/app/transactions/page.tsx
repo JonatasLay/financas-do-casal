@@ -395,9 +395,15 @@ export default function TransactionsPage() {
 
   const handleDelete = async () => {
     if (!deletingTx) return
-    const { error } = await supabase.from('transactions').delete().eq('id', deletingTx.id)
+    const query = deletingTx.recurring_group_id
+      ? supabase.from('transactions').delete().eq('recurring_group_id', deletingTx.recurring_group_id).gte('date', deletingTx.date)
+      : supabase.from('transactions').delete().eq('id', deletingTx.id)
+    const { error } = await query
     if (error) toast.error('Erro ao apagar')
-    else { toast.success('Lançamento apagado'); setTransactions(prev => prev.filter(t => t.id !== deletingTx.id)) }
+    else {
+      toast.success(deletingTx.recurring_group_id ? 'Lançamento e recorrências futuras apagados' : 'Lançamento apagado')
+      await fetchData()
+    }
     setDeletingTx(null)
   }
 
@@ -666,7 +672,7 @@ export default function TransactionsPage() {
       <ConfirmDialog
         open={!!deletingTx}
         title="Apagar lançamento?"
-        message={deletingTx ? `"${deletingTx.description}" será apagado permanentemente.` : ''}
+        message={deletingTx ? `"${deletingTx.description}" ${deletingTx.recurring_group_id ? 'e as recorrências futuras serão apagados.' : 'será apagado permanentemente.'}` : ''}
         confirmLabel="Apagar"
         onConfirm={handleDelete}
         onCancel={() => setDeletingTx(null)}

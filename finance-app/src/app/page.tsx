@@ -4,11 +4,9 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { SummaryCards } from '@/components/dashboard/SummaryCards'
 import { ExpenseChart } from '@/components/dashboard/ExpenseChart'
 import { CategoryChart } from '@/components/dashboard/CategoryChart'
 import { GoalsMini } from '@/components/dashboard/GoalsMini'
-import { RecentTransactions } from '@/components/dashboard/RecentTransactions'
 import { DailyTip } from '@/components/dashboard/DailyTip'
 import { OnlineIndicator } from '@/components/dashboard/OnlineIndicator'
 import { BudgetsMini } from '@/components/dashboard/BudgetsMini'
@@ -16,6 +14,7 @@ import { CreditCardSummary } from '@/components/dashboard/CreditCardSummary'
 import { FuturePreview } from '@/components/dashboard/FuturePreview'
 import { DollarRate } from '@/components/dashboard/DollarRate'
 import { MonthSelector } from '@/components/ui/MonthSelector'
+import { BankLogo } from '@/components/ui/BankLogo'
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal'
 import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
 import { RefreshCw, TrendingUp, PiggyBank, Wallet, ArrowUpRight, ArrowDownRight, X, Landmark } from 'lucide-react'
@@ -272,7 +271,10 @@ function AccountBalancesCard({ banks, loading }: { banks: Bank[]; loading: boole
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {cashBanks.map(bank => (
           <div key={bank.id} className="rounded-xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-            <p className="text-[10px] uppercase tracking-wide truncate" style={{ color: '#64748B' }}>{bank.name}</p>
+            <div className="flex items-center gap-2 min-w-0">
+              <BankLogo bank={bank} size="xs" />
+              <p className="text-[10px] uppercase tracking-wide truncate" style={{ color: '#64748B' }}>{bank.name}</p>
+            </div>
             <p className="text-sm font-bold font-mono-nums mt-0.5" style={{ color: '#F1F5F9' }}>{brl(Number(bank.current_balance || 0))}</p>
           </div>
         ))}
@@ -430,6 +432,14 @@ export default function DashboardPage() {
     .filter(t => !t.is_reimbursed)
     .reduce((s, t) => s + Number(t.amount), 0)
   const cardInvoiceTotal = creditInvoiceDueThisMonth.reduce((s, t) => s + Number(t.amount), 0)
+  const nextPreviewMonth = addMonths(currentDate, 1)
+  const futureCreditInvoices = creditInvoiceTransactions.filter(tx => {
+    const bank = bankById.get(tx.bank_id || '')
+    if (!bank || bank.type !== 'credito' || tx.type === 'receita' || tx.status !== 'realizado') return false
+    return isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day, bank.closing_day), nextPreviewMonth)
+  })
+  const futureDirectCoupleExpenses = nextMonthTransactions.filter(t => t.type !== 'receita' && isCouple(t) && !isCreditTx(t))
+  const futureCoupleTransactions = [...futureDirectCoupleExpenses, ...futureCreditInvoices.filter(isCouple)]
 
   const details: Record<DetailKind, { title: string; subtitle: string; transactions: Transaction[] }> = {
     income: { title: 'Receitas do mês', subtitle: 'Recebidas e previstas/agendadas no mês selecionado', transactions: visibleIncomeTransactions },
@@ -438,8 +448,8 @@ export default function DashboardPage() {
     planned: { title: 'Previstos e faturas', subtitle: 'Despesas agendadas e compras de cartão pela fatura do mês', transactions: [...visibleCashTransactions.filter(t => t.type !== 'receita' && t.status !== 'realizado'), ...visibleCreditInvoices] },
     neusa: { title: 'Neusa no mês', subtitle: `Cartão ${brl(neusaCardTotal)} · a receber ${brl(neusaReceivable)}`, transactions: neusaTransactions },
     'future-income': { title: 'Receber na prévia', subtitle: 'Receitas do próximo mês selecionado na prévia', transactions: nextMonthTransactions.filter(t => t.type === 'receita') },
-    'future-couple': { title: 'Casal na prévia', subtitle: 'Despesas diretas do casal no próximo mês', transactions: nextMonthTransactions.filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === 'casal' && !isCreditTx(t)) },
-    'future-card': { title: 'Fatura real da prévia', subtitle: 'Compras que caem na fatura prevista', transactions: creditInvoiceTransactions.filter(tx => tx.type !== 'receita' && tx.status === 'realizado' && isDateInMonth(getCreditCardPaymentDate(tx.date, bankById.get(tx.bank_id || '')?.due_day, bankById.get(tx.bank_id || '')?.closing_day), addMonths(currentDate, 1))) },
+    'future-couple': { title: 'Casal na prévia', subtitle: 'Despesas diretas e compras de cartão do casal que vencem na prévia', transactions: futureCoupleTransactions },
+    'future-card': { title: 'Fatura real da prévia', subtitle: 'Compras que caem na fatura prevista', transactions: futureCreditInvoices },
   }
 
   const byCategory = categories
@@ -516,6 +526,10 @@ export default function DashboardPage() {
             <DailyTip month={currentDate} />
           </motion.div>
 
+          <motion.div {...fadeUp(0.07)}>
+            <AccountBalancesCard banks={banks} loading={loading} />
+          </motion.div>
+
           {/* ── Row 3: Main balance card (quick stats) ── */}
           <motion.div {...fadeUp(0.08)}>
             <MonthlyCommandCenter
@@ -533,21 +547,6 @@ export default function DashboardPage() {
             />
           </motion.div>
 
-          {/* ── Row 4: Summary cards (pending, etc) ── */}
-          <motion.div {...fadeUp(0.12)}>
-            {false && <SummaryCards
-              income={income}
-              expenses={expenses}
-              pending={pending}
-              plannedIncome={plannedIncome}
-              plannedExpenses={plannedExpenses}
-              neusaTotal={neusaTotal}
-              neusaReceivable={neusaReceivable}
-              loading={loading}
-              onOpen={setDetailKind}
-            />}
-          </motion.div>
-
           {/* ── Row 4.5: Future preview ── */}
           <motion.div {...fadeUp(0.135)}>
             <FuturePreview
@@ -558,10 +557,6 @@ export default function DashboardPage() {
               loading={loading}
               onOpen={setDetailKind}
             />
-          </motion.div>
-
-          <motion.div {...fadeUp(0.145)}>
-            <AccountBalancesCard banks={banks} loading={loading} />
           </motion.div>
 
           {/* ── Row 5: Patrimônio (savings + investments) ── */}
@@ -590,11 +585,6 @@ export default function DashboardPage() {
           {/* ── Row 10: Goals ── */}
           <motion.div {...fadeUp(0.30)}>
             <GoalsMini goals={goals.slice(0, 3)} loading={loading} />
-          </motion.div>
-
-          {/* ── Row 11: Recent transactions ── */}
-          <motion.div {...fadeUp(0.33)}>
-            <RecentTransactions transactions={transactions.slice(0, 8)} loading={loading} onRefresh={fetchData} />
           </motion.div>
 
         </div>

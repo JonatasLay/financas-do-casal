@@ -17,8 +17,10 @@ export async function POST(req: NextRequest) {
     const { messages, mode, purchaseItem, purchasePrice, investmentQuestion } = await req.json()
     const context = await buildFinancialContext(supabase, user.id)
     const lastMessage = (messages as AIMessage[] | undefined)?.filter(m => m.role === 'user').at(-1)?.content || ''
-    const action = await tryCreateTransactionFromMessage(supabase, user.id, lastMessage)
-    if (action) return NextResponse.json({ response: action })
+    if (!mode || mode === 'chat') {
+      const action = await tryCreateTransactionFromMessage(supabase, user.id, lastMessage)
+      if (action) return NextResponse.json({ response: action })
+    }
 
     if (mode === 'purchase' && purchaseItem && purchasePrice) {
       return NextResponse.json({ response: await analyzePurchase(purchaseItem, purchasePrice, context) })

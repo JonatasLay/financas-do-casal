@@ -98,6 +98,9 @@ CREATE TABLE transactions (
   notes TEXT,
   is_recurring BOOLEAN DEFAULT FALSE,
   recurring_months INTEGER,
+  recurring_group_id UUID,
+  recurring_index INTEGER,
+  recurring_total INTEGER,
   responsible_party TEXT NOT NULL DEFAULT 'casal' CHECK (responsible_party IN ('casal', 'sogra')),
   is_reimbursed BOOLEAN NOT NULL DEFAULT FALSE,
   payment_method TEXT NOT NULL DEFAULT 'outro' CHECK (payment_method IN ('credito', 'debito', 'boleto', 'pix', 'dinheiro', 'transferencia', 'outro')),
@@ -349,6 +352,7 @@ CREATE INDEX idx_transactions_year_month ON transactions(year, month);
 CREATE INDEX idx_transactions_category ON transactions(category_id);
 CREATE INDEX idx_transactions_responsible_party ON transactions(household_id, responsible_party, is_reimbursed);
 CREATE INDEX idx_transactions_payment_method ON transactions(household_id, payment_method, status, date);
+CREATE INDEX idx_transactions_recurring_group ON transactions(household_id, recurring_group_id, date);
 
 CREATE OR REPLACE FUNCTION transaction_cash_delta(
   p_type TEXT,
