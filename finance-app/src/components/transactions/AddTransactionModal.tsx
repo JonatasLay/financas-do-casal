@@ -6,7 +6,7 @@ import { BankLogo } from '@/components/ui/BankLogo'
 import { X } from 'lucide-react'
 import { NumericFormat } from 'react-number-format'
 import { toast } from 'sonner'
-import { format } from 'date-fns'
+import { addMonths, format } from 'date-fns'
 import type { Category, Bank, Transaction, TransactionType, TransactionStatus } from '@/types'
 
 interface Props {
@@ -47,6 +47,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
   const [status, setStatus] = useState<TransactionStatus>('realizado')
   const [notes, setNotes] = useState('')
   const [isRecurring, setIsRecurring] = useState(false)
+  const [installments, setInstallments] = useState(1)
 
   useEffect(() => {
     if (!open) return
@@ -79,6 +80,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       setStatus(editTransaction.status as TransactionStatus)
       setNotes(editTransaction.notes || '')
       setIsRecurring(editTransaction.is_recurring || false)
+      setInstallments(1)
     } else {
       reset()
     }
@@ -89,6 +91,8 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       ? c.type === 'receita' || c.type === 'ambos'
       : c.type === 'despesa' || c.type === 'ambos'
   )
+  const selectedBank = banks.find(bank => bank.id === bankId)
+  const isCreditExpense = !!selectedBank && selectedBank.type === 'credito' && type !== 'receita'
 
   const reset = () => {
     setDate(format(new Date(), 'yyyy-MM-dd'))
@@ -100,6 +104,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
     setStatus('realizado')
     setNotes('')
     setIsRecurring(false)
+    setInstallments(1)
   }
 
   const handleClose = () => { if (!isEdit) reset(); onClose() }
@@ -112,10 +117,15 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
 
     setSaving(true)
     try {
+      const safeInstallments = isCreditExpense && !isEdit ? Math.max(1, Math.min(36, installments || 1)) : 1
+      const perInstallmentAmount = safeInstallments > 1
+        ? Number((amountFloat / safeInstallments).toFixed(2))
+        : amountFloat
+
       const payload = {
         date,
         description: description.trim(),
-        amount: amountFloat,
+        amount: perInstallmentAmount,
         type,
         category_id: categoryId || null,
         bank_id: bankId || null,
@@ -129,13 +139,26 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
         if (error) throw error
         toast.success('Lançamento atualizado! ✏️')
       } else {
-        const { error } = await supabase.from('transactions').insert({
-          ...payload,
-          household_id: profile.household_id,
-          created_by: profile.id,
+        const rows = Array.from({ length: safeInstallments }, (_, index) => {
+          const installmentNumber = index + 1
+          const amount = safeInstallments > 1 && installmentNumber === safeInstallments
+            ? Number((amountFloat - perInstallmentAmount * (safeInstallments - 1)).toFixed(2))
+            : perInstallmentAmount
+
+          return {
+            ...payload,
+            amount,
+            date: format(addMonths(new Date(`${date}T12:00:00`), index), 'yyyy-MM-dd'),
+            description: safeInstallments > 1
+              ? `${description.trim()} (Parcela ${String(installmentNumber).padStart(2, '0')}/${String(safeInstallments).padStart(2, '0')})`
+              : description.trim(),
+            household_id: profile.household_id,
+            created_by: profile.id,
+          }
         })
+        const { error } = await supabase.from('transactions').insert(rows)
         if (error) throw error
-        toast.success('Lançamento salvo! 🎉')
+        toast.success(safeInstallments > 1 ? `${safeInstallments} parcelas salvas!` : 'Lançamento salvo! 🎉')
       }
 
       onSuccess()
@@ -275,6 +298,35 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {isCreditExpense && !isEdit && (
+            <div className="rounded-xl p-3.5 space-y-3"
+              style={{ background: 'rgba(251,146,60,0.07)', border: '1px solid rgba(251,146,60,0.18)' }}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#FB923C' }}>
+                    Parcelamento no cartao
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>
+                    Cada parcela entra na fatura do mes correspondente.
+                  </p>
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  max={36}
+                  value={installments}
+                  onChange={e => setInstallments(Math.max(1, Math.min(36, Number(e.target.value) || 1)))}
+                  className="input w-20 text-center"
+                />
+              </div>
+              {installments > 1 && (
+                <p className="text-xs font-mono-nums" style={{ color: '#F1F5F9' }}>
+                  {installments}x de {(amountFloat / installments).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              )}
             </div>
           )}
 

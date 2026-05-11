@@ -8,9 +8,10 @@ import { AddTransactionModal } from '@/components/transactions/AddTransactionMod
 import { BankLogo } from '@/components/ui/BankLogo'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
+import { CheckCircle2, Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { getCreditCardPaymentDate } from '@/lib/finance-dates'
 import type { Transaction, Category, Bank, TransactionType, Profile } from '@/types'
 
 // ─── Transaction row with swipe + edit/delete ────────────────────────────────
@@ -29,26 +30,34 @@ const STATUS_BADGE: Record<string, string> = {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  realizado: 'Realizado',
+  realizado: 'Pago',
   pendente:  'Pendente',
   agendado:  'Agendado',
+}
+
+function getInstallmentLabel(tx: Transaction) {
+  const match = `${tx.description} ${tx.notes || ''}`.match(/Parcela\s+(\d{1,2})\/(\d{1,2})/i)
+  if (!match) return null
+  return `Parcela ${match[1].padStart(2, '0')}/${match[2].padStart(2, '0')}`
 }
 
 function TransactionRow({
   tx,
   onDelete,
   onEdit,
+  onPay,
 }: {
   tx: Transaction
   onDelete: () => void
   onEdit: () => void
+  onPay: () => void
 }) {
   const [offsetX, setOffsetX] = useState(0)
   const [touching, setTouching] = useState(false)
   const startX = useRef(0)
   const startY = useRef(0)
   const direction = useRef<'h' | 'v' | null>(null)
-  const MAX_SWIPE = 128
+  const MAX_SWIPE = 132
   const SNAP_THRESHOLD = 64
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -78,11 +87,16 @@ function TransactionRow({
 
   const color = TYPE_COLOR[tx.type] ?? '#F87171'
   const sign  = tx.type === 'receita' ? '+' : '-'
+  const installmentLabel = getInstallmentLabel(tx)
+  const isCredit = tx.bank?.type === 'credito'
+  const invoiceDate = isCredit ? getCreditCardPaymentDate(tx.date, tx.bank?.due_day) : null
+  const paid = tx.status === 'realizado'
+  const statusLabel = paid && tx.type === 'receita' ? 'Recebido' : STATUS_LABEL[tx.status]
 
   return (
     <div className="relative overflow-hidden rounded-2xl mb-2">
       {/* Actions revealed on swipe */}
-      <div className="absolute inset-y-0 right-0 flex" style={{ width: MAX_SWIPE }}>
+      <div className="absolute inset-y-0 right-0 flex md:hidden" style={{ width: MAX_SWIPE }}>
         <button onClick={onEdit}
           className="flex-1 flex flex-col items-center justify-center gap-1 text-white transition-opacity"
           style={{ background: '#818CF8' }}>
@@ -133,6 +147,11 @@ function TransactionRow({
                   · <BankLogo bank={tx.bank} size="xs" /> {tx.bank.name}
                 </span>
               )}
+              {invoiceDate && (
+                <span className="text-xs" style={{ color: '#FB923C' }}>
+                  · Fatura {format(invoiceDate, 'MMM/yy', { locale: ptBR })}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               {tx.profile && (
@@ -144,14 +163,36 @@ function TransactionRow({
                   <span className="text-xs" style={{ color: '#475569' }}>{tx.profile.name?.split(' ')[0]}</span>
                 </div>
               )}
-              <span className={STATUS_BADGE[tx.status]}>{STATUS_LABEL[tx.status]}</span>
+              <span className={STATUS_BADGE[tx.status]}>{statusLabel}</span>
+              {installmentLabel && (
+                <span className="badge" style={{ background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.25)', color: '#FB923C' }}>
+                  {installmentLabel}
+                </span>
+              )}
+              {!paid && (
+                <button onClick={onPay}
+                  className="md:hidden badge inline-flex items-center gap-1"
+                  style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.22)', color: '#34D399' }}>
+                  <CheckCircle2 className="w-3 h-3" />
+                  {tx.type === 'receita' ? 'Receber' : 'Pagar'}
+                </button>
+              )}
               {tx.is_recurring && <span className="text-xs">🔄</span>}
             </div>
           </div>
 
           {/* Amount + desktop actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="hidden md:flex gap-1">
+            <div className="hidden md:flex items-center gap-1">
+              {!paid && (
+                <button onClick={onPay}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1"
+                  style={{ color: '#34D399', background: 'rgba(52,211,153,0.09)', border: '1px solid rgba(52,211,153,0.2)' }}
+                  title={tx.type === 'receita' ? 'Marcar como recebido' : 'Marcar como pago'}>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {tx.type === 'receita' ? 'Receber' : 'Pagar'}
+                </button>
+              )}
               <button onClick={onEdit}
                 className="p-1.5 rounded-lg transition-colors"
                 style={{ color: '#818CF8' }}
@@ -298,6 +339,13 @@ export default function TransactionsPage() {
     if (error) toast.error('Erro ao apagar')
     else { toast.success('Lançamento apagado'); setTransactions(prev => prev.filter(t => t.id !== deletingTx.id)) }
     setDeletingTx(null)
+  }
+
+  const handlePay = async (tx: Transaction) => {
+    const { error } = await supabase.from('transactions').update({ status: 'realizado' }).eq('id', tx.id)
+    if (error) return void toast.error('Erro ao atualizar status')
+    toast.success(tx.type === 'receita' ? 'Recebimento realizado' : 'Pagamento realizado')
+    setTransactions(prev => prev.map(item => item.id === tx.id ? { ...item, status: 'realizado' } : item))
   }
 
   const handleEdit = (tx: Transaction) => {
@@ -483,6 +531,7 @@ export default function TransactionsPage() {
               <TransactionRow key={tx.id} tx={tx}
                 onDelete={() => setDeletingTx(tx)}
                 onEdit={() => handleEdit(tx)}
+                onPay={() => handlePay(tx)}
               />
             ))
           )}
