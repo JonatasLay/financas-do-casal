@@ -22,6 +22,12 @@ export function buildSystemPrompt(context: AIContext): string {
   const investStr = (context.investments || [])
     .map(i => `${i.name} (${i.type}): investido ${brl(i.invested)}, atual ${brl(i.current)}, P&L ${i.pl >= 0 ? '+' : ''}${brl(i.pl)}`).join(' | ')
 
+  const bankBalances = (context.bank_balances || [])
+    .map(b => `${b.name}: ${brl(b.balance)}`).join(' | ')
+
+  const creditBills = (context.credit_card_bills || [])
+    .map(c => `${c.name}: ${brl(c.amount)} vence dia ${c.due_day || 10}${c.closing_day ? `, fecha dia ${c.closing_day}` : ''}`).join(' | ')
+
   const names = context.profiles.map(p => p.name).join(' e ')
   const patrimony = context.total_patrimony ? brl(context.total_patrimony) : 'não calculado'
 
@@ -30,9 +36,14 @@ export function buildSystemPrompt(context: AIContext): string {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 DADOS FINANCEIROS REAIS (use sempre):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Receita este mês: ${brl(context.current_month_income)}
-• Despesas este mês: ${brl(context.current_month_expenses)}
-• Saldo do mês: ${brl(context.current_month_balance)} ${context.current_month_balance >= 0 ? '✅' : '⚠️'}
+• Receita recebida este mês: ${brl(context.current_month_income)}
+• Receita prevista/agendada no mês: ${brl(context.planned_month_income || 0)}
+• Despesas pagas no mês: ${brl(context.current_month_expenses)}
+• Despesas/faturas previstas no mês: ${brl(context.planned_month_expenses || 0)}
+• Saldo realizado do mês: ${brl(context.current_month_balance)} ${context.current_month_balance >= 0 ? '✅' : '⚠️'}
+• Saldo projetado do mês: ${brl(context.projected_month_balance ?? context.current_month_balance)}
+• Saldo atual em contas: ${brl(context.cash_balance || 0)}${bankBalances ? ` (${bankBalances})` : ''}
+• Faturas previstas: ${creditBills || 'Sem faturas previstas no mês'}
 • Principais gastos: ${topCats || 'Sem dados'}
 • Metas ativas: ${goalsStr || 'Nenhuma'}
 • Poupança: ${savingsStr || 'Nenhum registro'}

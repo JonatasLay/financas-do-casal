@@ -101,7 +101,7 @@ function TransactionRow({
   const sign  = tx.type === 'receita' ? '+' : '-'
   const installmentLabel = getInstallmentLabel(tx)
   const isCredit = tx.bank?.type === 'credito'
-  const invoiceDate = isCredit ? getCreditCardPaymentDate(tx.date, tx.bank?.due_day) : null
+  const invoiceDate = isCredit ? getCreditCardPaymentDate(tx.date, tx.bank?.due_day, tx.bank?.closing_day) : null
   const paid = tx.status === 'realizado'
   const statusLabel = paid && tx.type === 'receita' ? 'Recebido' : STATUS_LABEL[tx.status]
   const isNeusa = tx.responsible_party === 'sogra'

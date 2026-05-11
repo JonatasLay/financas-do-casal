@@ -25,6 +25,10 @@ export interface Bank {
   type: BankType; color: string; icon: string; is_default: boolean
   limit_amount?: number | null
   due_day?: number | null
+  closing_day?: number | null
+  opening_day?: number | null
+  current_balance?: number | null
+  balance_tracking_started_at?: string | null
 }
 
 export interface Transaction {
@@ -90,6 +94,12 @@ export interface AIContext {
   current_month_income: number
   current_month_expenses: number
   current_month_balance: number
+  planned_month_income?: number
+  planned_month_expenses?: number
+  projected_month_balance?: number
+  cash_balance?: number
+  bank_balances?: { name: string; type: string; balance: number }[]
+  credit_card_bills?: { name: string; due_day: number | null; closing_day: number | null; amount: number }[]
   top_expense_categories: { name: string; amount: number; icon: string }[]
   goals: { name: string; target: number; current: number; icon: string }[]
   monthly_history: { month: string; income: number; expenses: number }[]

@@ -45,7 +45,7 @@ const PRESET_BANKS = [
   { name: 'Itaú',           color: '#EC7000', icon: 'itaú',  type: 'conta'    },
   { name: 'Bradesco',       color: '#CC092F', icon: 'b',     type: 'conta'    },
   { name: 'Caixa',          color: '#005CA9', icon: 'CX',    type: 'conta'    },
-  { name: 'Mag Luiza',      color: '#0086FF', icon: 'M',     type: 'credito'  },
+  { name: 'Magazine Luiza', color: '#0086FF', icon: 'M',     type: 'credito', dueDay: 10, closingDay: 3, openingDay: 4 },
   { name: 'Pix',            color: '#32BCAD', icon: 'pix',   type: 'conta'    },
   { name: 'Dinheiro',       color: '#10B981', icon: 'R$',    type: 'dinheiro' },
 ]
@@ -170,12 +170,17 @@ function EditBankModal({ bank, onClose, onSaved }: { bank: Bank | null; onClose:
   const [icon, setIcon]           = useState('🏦')
   const [limitAmount, setLimitAmount] = useState(0)
   const [dueDay, setDueDay]       = useState(0)
+  const [closingDay, setClosingDay] = useState(0)
+  const [openingDay, setOpeningDay] = useState(0)
+  const [currentBalance, setCurrentBalance] = useState(0)
   const [saving, setSaving]       = useState(false)
 
   useEffect(() => {
     if (bank) {
       setName(bank.name); setType(bank.type); setColor(bank.color); setIcon(bank.icon)
       setLimitAmount(bank.limit_amount || 0); setDueDay(bank.due_day || 0)
+      setClosingDay(bank.closing_day || 0); setOpeningDay(bank.opening_day || 0)
+      setCurrentBalance(bank.current_balance || 0)
     }
   }, [bank])
 
@@ -183,9 +188,19 @@ function EditBankModal({ bank, onClose, onSaved }: { bank: Bank | null; onClose:
     e.preventDefault()
     if (!name.trim() || !bank) return
     setSaving(true)
-    const payload: any = { name: name.trim(), type, color, icon }
-    if (type === 'credito') { payload.limit_amount = limitAmount || null; payload.due_day = dueDay || null }
-    else { payload.limit_amount = null; payload.due_day = null }
+    const payload: any = { name: name.trim(), type, color, icon, current_balance: currentBalance || 0 }
+    if (type === 'credito') {
+      payload.limit_amount = limitAmount || null
+      payload.due_day = dueDay || null
+      payload.closing_day = closingDay || null
+      payload.opening_day = openingDay || null
+    } else {
+      payload.limit_amount = null
+      payload.due_day = null
+      payload.closing_day = null
+      payload.opening_day = null
+      payload.balance_tracking_started_at = new Date().toISOString()
+    }
     const { error } = await supabase.from('banks').update(payload).eq('id', bank.id)
     setSaving(false)
     if (error) return void toast.error('Erro ao atualizar')
@@ -229,6 +244,14 @@ function EditBankModal({ bank, onClose, onSaved }: { bank: Bank | null; onClose:
             </div>
           </div>
 
+          {type !== 'credito' && (
+            <div className="p-3 rounded-xl" style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.15)' }}>
+              <SectionLabel>Saldo atual da conta</SectionLabel>
+              <NumericFormat value={currentBalance || ''} onValueChange={v => setCurrentBalance(v.floatValue || 0)}
+                thousandSeparator="." decimalSeparator="," decimalScale={2} prefix="R$ " placeholder="R$ 0,00" inputMode="decimal" className="input text-sm" />
+            </div>
+          )}
+
           {type === 'credito' && (
             <div className="grid grid-cols-2 gap-3 p-3 rounded-xl" style={{ background: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.15)' }}>
               <div>
@@ -239,6 +262,14 @@ function EditBankModal({ bank, onClose, onSaved }: { bank: Bank | null; onClose:
               <div>
                 <SectionLabel>Dia vencimento</SectionLabel>
                 <input type="number" min={1} max={31} value={dueDay || ''} onChange={e => setDueDay(Number(e.target.value))} placeholder="Ex: 10" className="input text-sm" />
+              </div>
+              <div>
+                <SectionLabel>Fecha dia</SectionLabel>
+                <input type="number" min={1} max={31} value={closingDay || ''} onChange={e => setClosingDay(Number(e.target.value))} placeholder="Ex: 03" className="input text-sm" />
+              </div>
+              <div>
+                <SectionLabel>Inicia dia</SectionLabel>
+                <input type="number" min={1} max={31} value={openingDay || ''} onChange={e => setOpeningDay(Number(e.target.value))} placeholder="Ex: 04" className="input text-sm" />
               </div>
             </div>
           )}
@@ -634,21 +665,40 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
   const [icon, setIcon]             = useState('🏦')
   const [limitAmount, setLimitAmount] = useState(0)
   const [dueDay, setDueDay]         = useState(0)
+  const [closingDay, setClosingDay] = useState(0)
+  const [openingDay, setOpeningDay] = useState(0)
+  const [currentBalance, setCurrentBalance] = useState(0)
   const [saving, setSaving]         = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<Bank | null>(null)
   const [editingBank, setEditingBank]     = useState<Bank | null>(null)
 
-  const resetForm = () => { setName(''); setType('conta'); setColor('#818CF8'); setIcon('🏦'); setLimitAmount(0); setDueDay(0) }
+  const resetForm = () => {
+    setName(''); setType('conta'); setColor('#818CF8'); setIcon('🏦')
+    setLimitAmount(0); setDueDay(0); setClosingDay(0); setOpeningDay(0); setCurrentBalance(0)
+  }
 
   const applyPreset = (p: typeof PRESET_BANKS[0]) => {
     setName(p.name); setColor(p.color); setIcon(p.icon); setType(p.type as Bank['type'])
+    if (p.type === 'credito') {
+      setDueDay('dueDay' in p ? p.dueDay || 0 : 0)
+      setClosingDay('closingDay' in p ? p.closingDay || 0 : 0)
+      setOpeningDay('openingDay' in p ? p.openingDay || 0 : 0)
+    }
   }
 
   const addBank = async () => {
     if (!name.trim()) return void toast.error('Digite um nome')
     setSaving(true)
     const payload: any = { household_id: householdId, name: name.trim(), type, color, icon, is_default: false }
-    if (type === 'credito') { payload.limit_amount = limitAmount || null; payload.due_day = dueDay || null }
+    if (type === 'credito') {
+      payload.limit_amount = limitAmount || null
+      payload.due_day = dueDay || null
+      payload.closing_day = closingDay || null
+      payload.opening_day = openingDay || null
+    } else {
+      payload.current_balance = currentBalance || 0
+      payload.balance_tracking_started_at = new Date().toISOString()
+    }
     const { error } = await supabase.from('banks').insert(payload)
     setSaving(false)
     if (error) return void toast.error('Erro ao adicionar')
@@ -684,6 +734,9 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
                   </span>
                   {bank.limit_amount && <span className="text-[10px]" style={{ color: '#475569' }}>Limite: {brl(bank.limit_amount)}</span>}
                   {bank.due_day && <span className="text-[10px]" style={{ color: '#475569' }}>Venc: dia {bank.due_day}</span>}
+                  {bank.closing_day && <span className="text-[10px]" style={{ color: '#475569' }}>Fecha: dia {bank.closing_day}</span>}
+                  {bank.opening_day && <span className="text-[10px]" style={{ color: '#475569' }}>Inicia: dia {bank.opening_day}</span>}
+                  {bank.type !== 'credito' && <span className="text-[10px]" style={{ color: '#475569' }}>Saldo: {brl(bank.current_balance || 0)}</span>}
                   {bank.is_default && <span className="text-[10px]" style={{ color: '#334155' }}>padrão</span>}
                 </div>
               </div>
@@ -745,6 +798,14 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
             ))}
           </div>
         </div>
+        {type !== 'credito' && (
+          <div className="p-3 rounded-xl" style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.15)' }}>
+            <SectionLabel>Saldo atual da conta</SectionLabel>
+            <NumericFormat value={currentBalance || ''} onValueChange={v => setCurrentBalance(v.floatValue || 0)}
+              thousandSeparator="." decimalSeparator="," decimalScale={2} prefix="R$ " placeholder="R$ 0,00" inputMode="decimal" className="input text-sm" />
+          </div>
+        )}
+
         {type === 'credito' && (
           <div className="grid grid-cols-2 gap-3 p-3 rounded-xl" style={{ background: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.15)' }}>
             <div>
@@ -755,6 +816,14 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
             <div>
               <SectionLabel>Dia de vencimento</SectionLabel>
               <input type="number" min={1} max={31} value={dueDay || ''} onChange={e => setDueDay(Number(e.target.value))} placeholder="Ex: 10" className="input text-sm" />
+            </div>
+            <div>
+              <SectionLabel>Fecha dia</SectionLabel>
+              <input type="number" min={1} max={31} value={closingDay || ''} onChange={e => setClosingDay(Number(e.target.value))} placeholder="Ex: 03" className="input text-sm" />
+            </div>
+            <div>
+              <SectionLabel>Inicia dia</SectionLabel>
+              <input type="number" min={1} max={31} value={openingDay || ''} onChange={e => setOpeningDay(Number(e.target.value))} placeholder="Ex: 04" className="input text-sm" />
             </div>
           </div>
         )}

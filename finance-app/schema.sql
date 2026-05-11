@@ -74,6 +74,10 @@ CREATE TABLE banks (
   is_default BOOLEAN DEFAULT FALSE,
   limit_amount DECIMAL(12,2),
   due_day INTEGER CHECK (due_day BETWEEN 1 AND 31),
+  closing_day INTEGER CHECK (closing_day BETWEEN 1 AND 31),
+  opening_day INTEGER CHECK (opening_day BETWEEN 1 AND 31),
+  current_balance DECIMAL(12,2) DEFAULT 0,
+  balance_tracking_started_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -94,6 +98,9 @@ CREATE TABLE transactions (
   notes TEXT,
   is_recurring BOOLEAN DEFAULT FALSE,
   recurring_months INTEGER,
+  responsible_party TEXT NOT NULL DEFAULT 'casal' CHECK (responsible_party IN ('casal', 'sogra')),
+  is_reimbursed BOOLEAN NOT NULL DEFAULT FALSE,
+  payment_method TEXT NOT NULL DEFAULT 'outro' CHECK (payment_method IN ('credito', 'debito', 'boleto', 'pix', 'dinheiro', 'transferencia', 'outro')),
   month TEXT GENERATED ALWAYS AS (TO_CHAR(date, 'MON')) STORED,
   year INTEGER GENERATED ALWAYS AS (EXTRACT(YEAR FROM date)::INTEGER) STORED,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -340,5 +347,91 @@ CREATE INDEX idx_transactions_household ON transactions(household_id);
 CREATE INDEX idx_transactions_date ON transactions(date DESC);
 CREATE INDEX idx_transactions_year_month ON transactions(year, month);
 CREATE INDEX idx_transactions_category ON transactions(category_id);
+CREATE INDEX idx_transactions_responsible_party ON transactions(household_id, responsible_party, is_reimbursed);
+CREATE INDEX idx_transactions_payment_method ON transactions(household_id, payment_method, status, date);
+
+CREATE OR REPLACE FUNCTION transaction_cash_delta(
+  p_type TEXT,
+  p_status TEXT,
+  p_amount NUMERIC,
+  p_bank_type TEXT,
+  p_transaction_date DATE,
+  p_tracking_started_at TIMESTAMPTZ
+) RETURNS NUMERIC AS $$
+BEGIN
+  IF p_status <> 'realizado'
+    OR p_bank_type = 'credito'
+    OR p_transaction_date < COALESCE(p_tracking_started_at::DATE, CURRENT_DATE)
+  THEN
+    RETURN 0;
+  END IF;
+
+  IF p_type = 'receita' THEN
+    RETURN COALESCE(p_amount, 0);
+  END IF;
+
+  IF p_type IN ('despesa', 'fatura') THEN
+    RETURN -COALESCE(p_amount, 0);
+  END IF;
+
+  RETURN 0;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION apply_transaction_cash_balance()
+RETURNS TRIGGER AS $$
+DECLARE
+  old_bank RECORD;
+  new_bank RECORD;
+  old_delta NUMERIC := 0;
+  new_delta NUMERIC := 0;
+BEGIN
+  IF TG_OP IN ('UPDATE', 'DELETE') AND OLD.bank_id IS NOT NULL THEN
+    SELECT type, balance_tracking_started_at INTO old_bank FROM banks WHERE id = OLD.bank_id;
+    old_delta := transaction_cash_delta(
+      OLD.type,
+      OLD.status,
+      OLD.amount,
+      old_bank.type,
+      OLD.date,
+      old_bank.balance_tracking_started_at
+    );
+
+    IF old_delta <> 0 THEN
+      UPDATE banks
+      SET current_balance = COALESCE(current_balance, 0) - old_delta
+      WHERE id = OLD.bank_id;
+    END IF;
+  END IF;
+
+  IF TG_OP IN ('INSERT', 'UPDATE') AND NEW.bank_id IS NOT NULL THEN
+    SELECT type, balance_tracking_started_at INTO new_bank FROM banks WHERE id = NEW.bank_id;
+    new_delta := transaction_cash_delta(
+      NEW.type,
+      NEW.status,
+      NEW.amount,
+      new_bank.type,
+      NEW.date,
+      new_bank.balance_tracking_started_at
+    );
+
+    IF new_delta <> 0 THEN
+      UPDATE banks
+      SET current_balance = COALESCE(current_balance, 0) + new_delta
+      WHERE id = NEW.bank_id;
+    END IF;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER transactions_cash_balance_trigger
+AFTER INSERT OR UPDATE OR DELETE ON transactions
+FOR EACH ROW EXECUTE FUNCTION apply_transaction_cash_balance();
 CREATE INDEX idx_goals_household ON goals(household_id);
 CREATE INDEX idx_invites_household_status ON household_invites(household_id, status);

@@ -120,7 +120,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
   const selectedBank = banks.find(bank => bank.id === bankId)
   const isCreditExpense = paymentMethod === 'credito' && !!selectedBank && selectedBank.type === 'credito' && type !== 'receita'
   const isBoletoExpense = paymentMethod === 'boleto' && type !== 'receita'
-  const firstInvoiceDate = isCreditExpense ? getCreditCardPaymentDate(date, selectedBank?.due_day) : null
+  const firstInvoiceDate = isCreditExpense ? getCreditCardPaymentDate(date, selectedBank?.due_day, selectedBank?.closing_day) : null
   const canGenerateMonthlyRows = (isCreditExpense || isBoletoExpense) && !isEdit
   const amountLabel = isBoletoExpense && !isEdit ? 'Valor de cada boleto' : isCreditExpense && !isEdit ? 'Valor total' : 'Valor'
 
@@ -402,6 +402,12 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
                   <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Vencimento</p>
                   <p className="text-xs font-bold mt-0.5" style={{ color: selectedBank?.due_day ? '#F1F5F9' : '#FBBF24' }}>
                     {selectedBank?.due_day ? `Dia ${selectedBank.due_day}` : 'Configure no banco'}
+                  </p>
+                </div>
+                <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Fechamento</p>
+                  <p className="text-xs font-bold mt-0.5" style={{ color: selectedBank?.closing_day ? '#F1F5F9' : '#FBBF24' }}>
+                    {selectedBank?.closing_day ? `Dia ${selectedBank.closing_day}` : 'Configure no banco'}
                   </p>
                 </div>
               </div>

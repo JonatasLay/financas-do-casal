@@ -16,9 +16,12 @@ export function isDateInMonth(date: Date, month: Date) {
   return isWithinInterval(date, range)
 }
 
-export function getCreditCardPaymentDate(transactionDate: string, dueDay?: number | null) {
+export function getCreditCardPaymentDate(transactionDate: string, dueDay?: number | null, closingDay?: number | null) {
   const purchaseDate = parseLocalDate(transactionDate)
-  const paymentMonth = addMonths(startOfMonth(purchaseDate), 1)
+  const closeDay = closingDay ? Math.max(1, Math.min(closingDay, endOfMonth(purchaseDate).getDate())) : null
+  const paymentMonth = closeDay && purchaseDate.getDate() <= closeDay
+    ? startOfMonth(purchaseDate)
+    : addMonths(startOfMonth(purchaseDate), 1)
   const safeDueDay = Math.max(1, Math.min(dueDay || 10, endOfMonth(paymentMonth).getDate()))
   return setDate(paymentMonth, safeDueDay)
 }

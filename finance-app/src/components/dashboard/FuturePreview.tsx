@@ -46,7 +46,7 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
     transactions: creditTransactions
       .filter(tx => {
         if (tx.bank_id !== card.id || tx.type === 'receita' || tx.status !== 'realizado') return false
-        return isDateInMonth(getCreditCardPaymentDate(tx.date, card.due_day), targetMonth)
+        return isDateInMonth(getCreditCardPaymentDate(tx.date, card.due_day, card.closing_day), targetMonth)
       }),
   }))
     .map(item => ({
@@ -140,7 +140,7 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
                     Casal {brl(couple)} | Neusa {brl(neusa)}{neusaPending > 0 ? ` | a receber ${brl(neusaPending)}` : ''}
                   </p>
                 </div>
-                {card.due_day && <span className="text-[10px] flex-shrink-0" style={{ color: '#64748B' }}>dia {card.due_day}</span>}
+                <span className="text-[10px] flex-shrink-0" style={{ color: '#64748B' }}>venc. {card.due_day || 10}</span>
               </div>
               <p className="text-xs font-bold font-mono-nums" style={{ color: '#FB923C' }}>{brl(total)}</p>
             </div>

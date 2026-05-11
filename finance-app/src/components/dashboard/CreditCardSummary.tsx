@@ -46,7 +46,7 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
     transactions
       .filter(t => {
         if (t.bank_id !== card.id || t.type === 'receita' || t.status !== 'realizado') return false
-        return isDateInMonth(getCreditCardPaymentDate(t.date, card.due_day), selectedMonth)
+        return isDateInMonth(getCreditCardPaymentDate(t.date, card.due_day, card.closing_day), selectedMonth)
       })
 
   const getSpent = (card: Bank, filter?: (tx: Transaction) => boolean) =>
@@ -141,9 +141,9 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
                     <BankLogo bank={card} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate" style={{ color: '#F1F5F9' }}>{card.name}</p>
-                      {card.due_day && (
-                        <p className="text-[10px]" style={{ color: '#475569' }}>Venc. dia {card.due_day}</p>
-                      )}
+                      <p className="text-[10px]" style={{ color: '#475569' }}>
+                        Venc. dia {card.due_day || 10}{card.closing_day ? ` | fecha dia ${card.closing_day}` : ''}
+                      </p>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Fatura real</p>

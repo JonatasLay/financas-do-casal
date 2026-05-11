@@ -155,6 +155,7 @@ export default function DashboardPage() {
   const [loading, setLoading]   = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [prevBalance, setPrevBalance] = useState(0)
+  const [dashboardView, setDashboardView] = useState<'casal' | 'neusa' | 'todos'>('casal')
 
   // Pull-to-refresh
   const [pullY, setPullY]       = useState(0)
@@ -187,8 +188,8 @@ export default function DashboardPage() {
     const prevEnd   = format(endOfMonth(subMonths(currentDate, 1)), 'yyyy-MM-dd')
     const nextStart = format(startOfMonth(addMonths(currentDate, 1)), 'yyyy-MM-dd')
     const nextEnd   = format(endOfMonth(addMonths(currentDate, 1)), 'yyyy-MM-dd')
-    const creditStart = format(startOfMonth(subMonths(currentDate, 1)), 'yyyy-MM-dd')
-    const creditEnd   = format(endOfMonth(currentDate), 'yyyy-MM-dd')
+    const creditStart = format(startOfMonth(subMonths(currentDate, 2)), 'yyyy-MM-dd')
+    const creditEnd   = format(endOfMonth(addMonths(currentDate, 1)), 'yyyy-MM-dd')
 
     const [txRes, goalsRes, catsRes, budgetsRes, banksRes, prevTxRes, nextTxRes, creditTxRes] = await Promise.all([
       supabase.from('transactions')
@@ -254,23 +255,32 @@ export default function DashboardPage() {
   const creditInvoiceDueThisMonth = creditInvoiceTransactions.filter(tx => {
     const bank = bankById.get(tx.bank_id || '')
     if (!bank || bank.type !== 'credito' || tx.type === 'receita' || tx.status !== 'realizado') return false
-    return isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day), currentDate)
+    return isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day, bank.closing_day), currentDate)
   })
-  const financialTransactions = [
-    ...transactions.filter(tx => !isCreditTx(tx)),
-    ...creditInvoiceDueThisMonth,
-  ]
+  const cashTransactions = transactions.filter(tx => !isCreditTx(tx))
+  const financialTransactions = [...cashTransactions, ...creditInvoiceDueThisMonth]
+  const isInDashboardView = (tx: Transaction) => {
+    const party = tx.responsible_party || 'casal'
+    if (dashboardView === 'todos') return true
+    if (dashboardView === 'neusa') return party === 'sogra'
+    return party === 'casal' || (party === 'sogra' && !tx.is_reimbursed)
+  }
+  const visibleCashTransactions = cashTransactions.filter(isInDashboardView)
+  const visibleCreditInvoices = creditInvoiceDueThisMonth.filter(isInDashboardView)
   const coupleFinancialTransactions = financialTransactions.filter(tx => (tx.responsible_party || 'casal') === 'casal')
 
-  const income = transactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const coupleExpenses = financialTransactions
-    .filter(t => t.type !== 'receita' && t.status === 'realizado' && (t.responsible_party || 'casal') === 'casal')
+  const visibleIncomeTransactions = transactions.filter(t => t.type === 'receita' && isInDashboardView(t))
+  const income = visibleIncomeTransactions.filter(t => t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const plannedIncome = visibleIncomeTransactions.filter(t => t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const expenses = visibleCashTransactions
+    .filter(t => t.type !== 'receita' && t.status === 'realizado')
     .reduce((s, t) => s + Number(t.amount), 0)
-  const neusaPending = financialTransactions
-    .filter(t => t.type !== 'receita' && t.status === 'realizado' && t.responsible_party === 'sogra' && !t.is_reimbursed)
+  const plannedCashExpenses = visibleCashTransactions
+    .filter(t => t.type !== 'receita' && t.status !== 'realizado')
     .reduce((s, t) => s + Number(t.amount), 0)
-  const expenses = coupleExpenses + neusaPending
-  const pending = transactions.filter(t => t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const plannedCreditInvoices = visibleCreditInvoices.reduce((s, t) => s + Number(t.amount), 0)
+  const plannedExpenses = plannedCashExpenses + plannedCreditInvoices
+  const pending = plannedExpenses
   const balance  = income - expenses
 
   const byCategory = categories
@@ -343,6 +353,27 @@ export default function DashboardPage() {
             <MonthSelector value={currentDate} onChange={d => { setCurrentDate(d); setLoading(true) }} />
           </motion.div>
 
+          <motion.div {...fadeUp(0.065)} className="flex justify-center">
+            <div className="inline-flex gap-1 p-1 rounded-2xl" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              {[
+                { id: 'casal', label: 'Casal' },
+                { id: 'neusa', label: 'Neusa' },
+                { id: 'todos', label: 'Todos' },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setDashboardView(item.id as 'casal' | 'neusa' | 'todos')}
+                  className="px-4 py-1.5 rounded-xl text-xs font-semibold transition-all"
+                  style={dashboardView === item.id
+                    ? { background: 'rgba(129,140,248,0.18)', color: '#C7D2FE', border: '1px solid rgba(129,140,248,0.3)' }
+                    : { color: '#64748B', border: '1px solid transparent' }}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+
           {/* ── Row 3: Main balance card (quick stats) ── */}
           <motion.div {...fadeUp(0.08)}>
             <QuickStats income={income} expenses={expenses} balance={balance} prevBalance={prevBalance} loading={loading} />
@@ -350,7 +381,15 @@ export default function DashboardPage() {
 
           {/* ── Row 4: Summary cards (pending, etc) ── */}
           <motion.div {...fadeUp(0.12)}>
-            <SummaryCards income={income} expenses={expenses} pending={pending} loading={loading} />
+            <SummaryCards
+              income={income}
+              expenses={expenses}
+              pending={pending}
+              plannedIncome={plannedIncome}
+              plannedExpenses={plannedExpenses}
+              viewLabel={dashboardView === 'casal' ? 'visao casal' : dashboardView === 'neusa' ? 'visao Neusa' : 'visao geral'}
+              loading={loading}
+            />
           </motion.div>
 
           {/* ── Row 4.5: Future preview ── */}

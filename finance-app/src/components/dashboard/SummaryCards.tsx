@@ -6,6 +6,9 @@ interface SummaryCardsProps {
   income: number
   expenses: number
   pending: number
+  plannedIncome?: number
+  plannedExpenses?: number
+  viewLabel?: string
   loading: boolean
 }
 
@@ -13,8 +16,9 @@ function fmt(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export function SummaryCards({ income, expenses, pending, loading }: SummaryCardsProps) {
+export function SummaryCards({ income, expenses, pending, plannedIncome = 0, plannedExpenses = 0, viewLabel = 'este mes', loading }: SummaryCardsProps) {
   const balance = income - expenses
+  const projectedBalance = income + plannedIncome - expenses - plannedExpenses
   const spentPct = income > 0 ? Math.round((expenses / income) * 100) : 0
 
   if (loading) {
@@ -39,7 +43,7 @@ export function SummaryCards({ income, expenses, pending, loading }: SummaryCard
           <TrendingUp className="w-4 h-4" style={{ color: '#34D399' }} />
         </div>
         <p className="text-xl font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{fmt(income)}</p>
-        <p className="text-xs mt-1" style={{ color: '#64748B' }}>este mês</p>
+        <p className="text-xs mt-1" style={{ color: '#64748B' }}>{plannedIncome > 0 ? `+ ${fmt(plannedIncome)} previsto` : viewLabel}</p>
       </div>
 
       {/* Despesa */}
@@ -52,7 +56,7 @@ export function SummaryCards({ income, expenses, pending, loading }: SummaryCard
           <TrendingDown className="w-4 h-4" style={{ color: '#F87171' }} />
         </div>
         <p className="text-xl font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{fmt(expenses)}</p>
-        <p className="text-xs mt-1" style={{ color: '#64748B' }}>{spentPct}% da renda</p>
+        <p className="text-xs mt-1" style={{ color: '#64748B' }}>{plannedExpenses > 0 ? `+ ${fmt(plannedExpenses)} previsto` : `${spentPct}% da renda`}</p>
       </div>
 
       {/* Saldo */}
@@ -69,20 +73,20 @@ export function SummaryCards({ income, expenses, pending, loading }: SummaryCard
         <p className="text-xl font-bold font-mono-nums" style={{ color: balance >= 0 ? '#818CF8' : '#F87171' }}>
           {balance >= 0 ? '+' : ''}{fmt(balance)}
         </p>
-        <p className="text-xs mt-1" style={{ color: '#64748B' }}>{balance >= 0 ? 'superávit' : 'déficit'}</p>
+        <p className="text-xs mt-1" style={{ color: '#64748B' }}>Projetado: {projectedBalance >= 0 ? '+' : ''}{fmt(projectedBalance)}</p>
       </div>
 
-      {/* Pendentes */}
+      {/* Previsto */}
       <div className="rounded-2xl p-4 col-span-1" style={{
         background: 'linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))',
         border: '1px solid rgba(251,191,36,0.25)',
       }}>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-medium" style={{ color: '#FBBF24' }}>Pendentes</p>
+          <p className="text-xs font-medium" style={{ color: '#FBBF24' }}>Previsto</p>
           <Clock className="w-4 h-4" style={{ color: '#FBBF24' }} />
         </div>
         <p className="text-xl font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{fmt(pending)}</p>
-        <p className="text-xs mt-1" style={{ color: '#64748B' }}>a pagar</p>
+        <p className="text-xs mt-1" style={{ color: '#64748B' }}>despesas e faturas</p>
       </div>
     </div>
   )
