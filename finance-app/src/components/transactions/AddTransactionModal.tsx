@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { BankLogo } from '@/components/ui/BankLogo'
 import { X } from 'lucide-react'
 import { NumericFormat } from 'react-number-format'
 import { toast } from 'sonner'
@@ -269,7 +270,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
                     style={bankId === bank.id
                       ? { borderColor: '#818CF8', background: 'rgba(129,140,248,0.12)', color: '#818CF8' }
                       : { borderColor: 'rgba(255,255,255,0.07)', background: inputBg, color: '#94A3B8' }}>
-                    <span className="flex-shrink-0">{bank.icon}</span>
+                    <BankLogo bank={bank} size="sm" />
                     <span className="truncate">{bank.name}</span>
                   </button>
                 ))}

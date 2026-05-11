@@ -1,6 +1,7 @@
 'use client'
 
 import { CreditCard, AlertCircle } from 'lucide-react'
+import { BankLogo } from '@/components/ui/BankLogo'
 import type { Bank, Transaction } from '@/types'
 import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
 
@@ -104,10 +105,7 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
                 <div key={card.id} className="p-3.5 rounded-2xl space-y-2.5"
                   style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-                      style={{ background: `${color}18`, border: `1px solid ${color}30` }}>
-                      {card.icon}
-                    </div>
+                    <BankLogo bank={card} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate" style={{ color: '#F1F5F9' }}>{card.name}</p>
                       {card.due_day && (

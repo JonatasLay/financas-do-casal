@@ -1,6 +1,7 @@
 'use client'
 
 import { CalendarClock, CreditCard, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { BankLogo } from '@/components/ui/BankLogo'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Bank, Transaction } from '@/types'
@@ -94,7 +95,7 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
             <div key={card.id} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2"
               style={{ background: `${card.color || '#818CF8'}0D`, border: `1px solid ${card.color || '#818CF8'}22` }}>
               <div className="flex items-center gap-2 min-w-0">
-                <span>{card.icon}</span>
+                <BankLogo bank={card} size="xs" />
                 <p className="text-xs font-medium truncate" style={{ color: '#F1F5F9' }}>{card.name}</p>
                 {card.due_day && <span className="text-[10px]" style={{ color: '#64748B' }}>dia {card.due_day}</span>}
               </div>

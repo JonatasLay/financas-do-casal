@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { MonthSelector } from '@/components/ui/MonthSelector'
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal'
+import { BankLogo } from '@/components/ui/BankLogo'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
@@ -127,7 +128,11 @@ function TransactionRow({
                 {format(new Date(tx.date + 'T12:00:00'), "dd 'de' MMM", { locale: ptBR })}
               </span>
               {tx.category && <span className="text-xs" style={{ color: '#475569' }}>· {tx.category.name}</span>}
-              {tx.bank && <span className="text-xs" style={{ color: '#475569' }}>· {tx.bank.icon} {tx.bank.name}</span>}
+              {tx.bank && (
+                <span className="inline-flex items-center gap-1 text-xs" style={{ color: '#475569' }}>
+                  · <BankLogo bank={tx.bank} size="xs" /> {tx.bank.name}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               {tx.profile && (
@@ -419,8 +424,10 @@ export default function TransactionsPage() {
                   {banks.map(bank => (
                     <FilterBtn key={bank.id} active={filterBankId === bank.id}
                       onClick={() => setFilterBankId(bank.id === filterBankId ? '' : bank.id)}>
-                      {bank.icon} {bank.name}
-                    </FilterBtn>
+                    <span className="inline-flex items-center gap-1.5">
+                      <BankLogo bank={bank} size="xs" /> {bank.name}
+                    </span>
+                  </FilterBtn>
                   ))}
                 </div>
               </div>

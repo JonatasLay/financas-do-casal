@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { NumericFormat } from 'react-number-format'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { BankLogo } from '@/components/ui/BankLogo'
 import { UserAdminTab } from '@/components/settings/UserAdminTab'
 import { SecurityTab } from '@/components/settings/SecurityTab'
 import { toast } from 'sonner'
@@ -38,14 +39,15 @@ const BANK_TYPES = [
   { value: 'investimento', label: 'Investimento'   },
 ]
 const PRESET_BANKS = [
-  { name: 'Nubank',         color: '#8A05BE', icon: '💜', type: 'credito'  },
-  { name: 'Inter',          color: '#FF6B35', icon: '🧡', type: 'conta'    },
-  { name: 'Banco do Brasil',color: '#F7C948', icon: '🟡', type: 'conta'    },
-  { name: 'Itaú',           color: '#EC7000', icon: '🟠', type: 'conta'    },
-  { name: 'Bradesco',       color: '#CC092F', icon: '🔴', type: 'conta'    },
-  { name: 'Caixa',          color: '#005CA9', icon: '💙', type: 'conta'    },
-  { name: 'Mag Luiza',      color: '#0086FF', icon: '💳', type: 'credito'  },
-  { name: 'Dinheiro',       color: '#34D399', icon: '💵', type: 'dinheiro' },
+  { name: 'Nubank',         color: '#820AD1', icon: 'Nu',    type: 'credito'  },
+  { name: 'Inter',          color: '#FD540F', icon: 'inter', type: 'conta'    },
+  { name: 'Banco do Brasil',color: '#F2CE1B', icon: 'BB',    type: 'conta'    },
+  { name: 'Itaú',           color: '#EC7000', icon: 'itaú',  type: 'conta'    },
+  { name: 'Bradesco',       color: '#CC092F', icon: 'b',     type: 'conta'    },
+  { name: 'Caixa',          color: '#005CA9', icon: 'CX',    type: 'conta'    },
+  { name: 'Mag Luiza',      color: '#0086FF', icon: 'M',     type: 'credito'  },
+  { name: 'Pix',            color: '#32BCAD', icon: 'pix',   type: 'conta'    },
+  { name: 'Dinheiro',       color: '#10B981', icon: 'R$',    type: 'dinheiro' },
 ]
 const CAT_TYPE_LABEL: Record<string, string> = { receita: 'Receita', despesa: 'Despesa', ambos: 'Ambos' }
 const BANK_TYPE_LABEL: Record<string, string> = { conta: 'Conta', credito: 'Crédito', debito: 'Débito', dinheiro: 'Dinheiro', investimento: 'Invest.' }
@@ -672,8 +674,7 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
           {banks.map(bank => (
             <div key={bank.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5"
               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                style={{ backgroundColor: bank.color + '20' }}>{bank.icon}</div>
+              <BankLogo bank={bank} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate" style={textStyle}>{bank.name}</p>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -720,7 +721,8 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
                 style={name === p.name
                   ? { border: `1px solid ${p.color}`, color: p.color, background: p.color + '12' }
                   : { border: '1px solid rgba(255,255,255,0.08)', color: '#94A3B8', background: 'rgba(255,255,255,0.04)' }}>
-                <span>{p.icon}</span>{p.name}
+                <BankLogo name={p.name} color={p.color} icon={p.icon} size="sm" />
+                {p.name}
               </button>
             ))}
           </div>

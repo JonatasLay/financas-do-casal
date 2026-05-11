@@ -64,12 +64,12 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
         <div className="p-5" style={{ borderBottom: '1px solid rgba(129,140,248,0.08)' }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden"
-              style={{ background: 'rgba(255,255,255,0.08)', boxShadow: '0 0 20px rgba(129,140,248,0.25)' }}>
-              <img src="/icons/icon-192.png" alt="Financas do Casal" className="w-full h-full object-cover" />
+              style={{ background: 'rgba(255,255,255,0.04)', boxShadow: '0 0 20px rgba(129,140,248,0.25)' }}>
+              <img src="/icons/icon-192.png" alt="Financas do Casal" className="w-full h-full object-cover scale-[1.18]" />
             </div>
             <div>
               <p className="font-bold text-sm" style={{ color: '#F1F5F9' }}>Finanças do Casal</p>
-              <p className="text-xs" style={{ color: '#475569' }}>Juntos é melhor 💜</p>
+              <p className="text-xs font-medium" style={{ color: '#94A3B8' }}>Juntos é melhor 💜</p>
             </div>
           </div>
         </div>
@@ -134,8 +134,8 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
           }}>
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden"
-              style={{ background: 'rgba(255,255,255,0.08)' }}>
-              <img src="/icons/icon-192.png" alt="Financas do Casal" className="w-full h-full object-cover" />
+              style={{ background: 'rgba(255,255,255,0.04)' }}>
+              <img src="/icons/icon-192.png" alt="Financas do Casal" className="w-full h-full object-cover scale-[1.18]" />
             </div>
             <span className="font-bold text-sm" style={{ color: '#F1F5F9' }}>Finanças do Casal</span>
           </div>
