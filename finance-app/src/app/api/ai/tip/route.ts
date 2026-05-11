@@ -6,6 +6,7 @@ import { generateDailyTip } from '@/lib/ai'
 import { AIContext } from '@/types'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { NextRequest } from 'next/server'
+import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,16 +30,38 @@ export async function GET(req: NextRequest) {
     const start = format(startOfMonth(selectedDate), 'yyyy-MM-dd')
     const end = format(endOfMonth(selectedDate), 'yyyy-MM-dd')
 
-    const { data: txs } = await supabase
+    const [txRes, creditTxRes, banksRes] = await Promise.all([
+      supabase
       .from('transactions')
-      .select('amount, type, status, category:categories(name, icon)')
+      .select('*, category:categories(name, icon), bank:banks(*)')
       .eq('household_id', hid)
-      .gte('date', start).lte('date', end)
+      .gte('date', start).lte('date', end),
+      supabase
+        .from('transactions')
+        .select('*, category:categories(name, icon), bank:banks(*)')
+        .eq('household_id', hid)
+        .eq('status', 'realizado')
+        .gte('date', format(startOfMonth(new Date(selectedYear, selectedMonth - 3, 1)), 'yyyy-MM-dd'))
+        .lte('date', format(endOfMonth(new Date(selectedYear, selectedMonth, 1)), 'yyyy-MM-dd')),
+      supabase.from('banks').select('*').eq('household_id', hid),
+    ])
 
-    const income = (txs || []).filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-    const plannedIncome = (txs || []).filter(t => t.type === 'receita' && t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-    const expenses = (txs || []).filter(t => t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-    const plannedExpenses = (txs || []).filter(t => t.type !== 'receita' && t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+    const txs = txRes.data || []
+    const banks = banksRes.data || []
+    const bankById = new Map<string, any>(banks.map((bank: any) => [bank.id, bank]))
+    const isCreditTx = (tx: any) => bankById.get(tx.bank_id || '')?.type === 'credito'
+    const creditInvoiceTxs = (creditTxRes.data || []).filter((tx: any) => {
+      const bank = bankById.get(tx.bank_id || '')
+      if (!bank || bank.type !== 'credito' || tx.type === 'receita') return false
+      return isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day, bank.closing_day), selectedDate)
+    })
+    const cashTxs = txs.filter((tx: any) => !isCreditTx(tx))
+    const income = txs.filter((t: any) => t.type === 'receita' && t.status === 'realizado').reduce((s: number, t: any) => s + Number(t.amount), 0)
+    const plannedIncome = txs.filter((t: any) => t.type === 'receita' && t.status !== 'realizado').reduce((s: number, t: any) => s + Number(t.amount), 0)
+    const expenses = cashTxs.filter((t: any) => t.type !== 'receita' && t.status === 'realizado').reduce((s: number, t: any) => s + Number(t.amount), 0)
+    const plannedExpenses = cashTxs.filter((t: any) => t.type !== 'receita' && t.status !== 'realizado').reduce((s: number, t: any) => s + Number(t.amount), 0)
+      + creditInvoiceTxs.reduce((s: number, t: any) => s + Number(t.amount), 0)
+    const bankBalances = banks.filter((bank: any) => bank.type !== 'credito').map((bank: any) => ({ name: bank.name, type: bank.type, balance: Number(bank.current_balance || 0) }))
 
     const context: AIContext = {
       current_month_income: income,
@@ -47,6 +70,17 @@ export async function GET(req: NextRequest) {
       planned_month_income: plannedIncome,
       planned_month_expenses: plannedExpenses,
       projected_month_balance: income + plannedIncome - expenses - plannedExpenses,
+      cash_balance: bankBalances.reduce((s: number, b: any) => s + b.balance, 0),
+      bank_balances: bankBalances,
+      credit_card_bills: banks
+        .filter((bank: any) => bank.type === 'credito')
+        .map((bank: any) => ({
+          name: bank.name,
+          due_day: bank.due_day,
+          closing_day: bank.closing_day,
+          amount: creditInvoiceTxs.filter((tx: any) => tx.bank_id === bank.id).reduce((s: number, tx: any) => s + Number(tx.amount), 0),
+        }))
+        .filter((bill: any) => bill.amount > 0),
       top_expense_categories: [],
       goals: [],
       monthly_history: [],

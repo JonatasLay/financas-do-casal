@@ -192,6 +192,67 @@ function QuickStats({ income, expenses, balance, prevBalance, loading }: {
   )
 }
 
+function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedExpenses, balance, projectedBalance, prevBalance, neusaTotal, neusaReceivable, loading, onOpen }: {
+  income: number; plannedIncome: number; expenses: number; plannedExpenses: number
+  balance: number; projectedBalance: number; prevBalance: number
+  neusaTotal: number; neusaReceivable: number; loading: boolean; onOpen: (kind: DetailKind) => void
+}) {
+  const balanceDelta = prevBalance !== 0 ? ((projectedBalance - prevBalance) / Math.abs(prevBalance)) * 100 : 0
+  const deltaPositive = balanceDelta >= 0
+  const totalIncome = income + plannedIncome
+  const totalExpenses = expenses + plannedExpenses
+  const cards = [
+    { kind: 'income' as const, label: 'Receitas', value: totalIncome, detail: `${brl(income)} recebido · ${brl(plannedIncome)} previsto`, color: '#34D399' },
+    { kind: 'expenses' as const, label: 'Despesas', value: totalExpenses, detail: `${brl(expenses)} pago · ${brl(plannedExpenses)} previsto`, color: '#F87171' },
+    { kind: 'balance' as const, label: 'Saldo', value: projectedBalance, detail: `realizado ${brl(balance)}`, color: projectedBalance >= 0 ? '#818CF8' : '#F87171' },
+    { kind: 'planned' as const, label: 'Faturas/previstos', value: plannedExpenses, detail: 'a pagar no mes', color: '#FBBF24' },
+    { kind: 'neusa' as const, label: 'Neusa', value: neusaTotal, detail: neusaReceivable > 0 ? `${brl(neusaReceivable)} a receber` : 'sem pendencia', color: '#F9A8D4' },
+  ]
+
+  if (loading) return <div className="skeleton h-48 rounded-2xl" />
+
+  return (
+    <div className="rounded-2xl p-4 space-y-4"
+      style={{ background: 'linear-gradient(135deg, rgba(129,140,248,0.08), rgba(244,114,182,0.05))', border: '1px solid rgba(129,140,248,0.18)' }}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Saldo previsto do mes</p>
+          <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>Receitas previstas menos despesas, faturas e compromissos do mes</p>
+        </div>
+        {prevBalance !== 0 && (
+          <div className="flex items-center gap-1">
+            {deltaPositive ? <ArrowUpRight className="w-3.5 h-3.5" style={{ color: '#34D399' }} /> : <ArrowDownRight className="w-3.5 h-3.5" style={{ color: '#F87171' }} />}
+            <span className="text-xs font-bold" style={{ color: deltaPositive ? '#34D399' : '#F87171' }}>
+              {deltaPositive ? '+' : ''}{balanceDelta.toFixed(1)}% vs mes ant.
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <p className="text-4xl font-bold font-mono-nums" style={{ color: projectedBalance >= 0 ? '#34D399' : '#F87171' }}>
+          {projectedBalance >= 0 ? '+' : ''}{brl(projectedBalance)}
+        </p>
+        <p className="text-xs pb-1" style={{ color: '#64748B' }}>
+          realizado agora: <span className="font-bold" style={{ color: balance >= 0 ? '#34D399' : '#F87171' }}>{balance >= 0 ? '+' : ''}{brl(balance)}</span>
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        {cards.map(card => (
+          <button key={card.kind} type="button" onClick={() => onOpen(card.kind)}
+            className="rounded-xl p-3 text-left transition-transform active:scale-[0.99]"
+            style={{ background: `${card.color}10`, border: `1px solid ${card.color}30` }}>
+            <p className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: card.color }}>{card.label}</p>
+            <p className="text-base font-bold font-mono-nums mt-1" style={{ color: '#F1F5F9' }}>{brl(card.value)}</p>
+            <p className="text-[10px] mt-1 leading-tight" style={{ color: '#64748B' }}>{card.detail}</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function AccountBalancesCard({ banks, loading }: { banks: Bank[]; loading: boolean }) {
   const cashBanks = banks.filter(bank => bank.type !== 'credito')
   const total = cashBanks.reduce((sum, bank) => sum + Number(bank.current_balance || 0), 0)
@@ -457,12 +518,24 @@ export default function DashboardPage() {
 
           {/* ── Row 3: Main balance card (quick stats) ── */}
           <motion.div {...fadeUp(0.08)}>
-            <QuickStats income={income} expenses={expenses} balance={balance} prevBalance={prevBalance} loading={loading} />
+            <MonthlyCommandCenter
+              income={income}
+              plannedIncome={plannedIncome}
+              expenses={expenses}
+              plannedExpenses={plannedExpenses}
+              balance={balance}
+              projectedBalance={projectedBalance}
+              prevBalance={prevBalance}
+              neusaTotal={neusaTotal}
+              neusaReceivable={neusaReceivable}
+              loading={loading}
+              onOpen={setDetailKind}
+            />
           </motion.div>
 
           {/* ── Row 4: Summary cards (pending, etc) ── */}
           <motion.div {...fadeUp(0.12)}>
-            <SummaryCards
+            {false && <SummaryCards
               income={income}
               expenses={expenses}
               pending={pending}
@@ -472,7 +545,7 @@ export default function DashboardPage() {
               neusaReceivable={neusaReceivable}
               loading={loading}
               onOpen={setDetailKind}
-            />
+            />}
           </motion.div>
 
           {/* ── Row 4.5: Future preview ── */}

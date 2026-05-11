@@ -5,7 +5,7 @@ export const maxDuration = 30
 import { createClient } from '@/lib/supabase/server'
 import { chatWithFina, analyzePurchase, analyzeInvestments } from '@/lib/ai'
 import { AIContext, AIMessage } from '@/types'
-import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
+import { format, startOfMonth, endOfMonth, subMonths, addMonths, subDays } from 'date-fns'
 import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
 
 export async function POST(req: NextRequest) {
@@ -16,6 +16,9 @@ export async function POST(req: NextRequest) {
 
     const { messages, mode, purchaseItem, purchasePrice, investmentQuestion } = await req.json()
     const context = await buildFinancialContext(supabase, user.id)
+    const lastMessage = (messages as AIMessage[] | undefined)?.filter(m => m.role === 'user').at(-1)?.content || ''
+    const action = await tryCreateTransactionFromMessage(supabase, user.id, lastMessage)
+    if (action) return NextResponse.json({ response: action })
 
     if (mode === 'purchase' && purchaseItem && purchasePrice) {
       return NextResponse.json({ response: await analyzePurchase(purchaseItem, purchasePrice, context) })
@@ -29,6 +32,78 @@ export async function POST(req: NextRequest) {
     console.error('AI API error:', error)
     return NextResponse.json({ error: 'Erro interno. Tente novamente.' }, { status: 500 })
   }
+}
+
+function parseMoney(text: string) {
+  const match = text.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:[,.]\d{1,2})?|\d+)/i)
+  if (!match) return 0
+  return Number(match[1].replace(/\./g, '').replace(',', '.'))
+}
+
+async function tryCreateTransactionFromMessage(supabase: any, userId: string, raw: string) {
+  const text = raw.toLowerCase()
+  const wantsLaunch = /\b(lance|lan[cç]a|registre|adicione|coloque)\b/.test(text)
+  if (!wantsLaunch) return null
+
+  const amount = parseMoney(raw)
+  if (!amount || amount <= 0) {
+    return 'Consigo lançar sim, mas preciso do valor. Ex: "Lance mercado R$ 200 no cartão Nubank".'
+  }
+
+  const { data: profile } = await supabase.from('profiles').select('id, household_id').eq('id', userId).single()
+  if (!profile?.household_id) return 'Não encontrei seu perfil para lançar isso.'
+
+  const [banksRes, catsRes] = await Promise.all([
+    supabase.from('banks').select('*').eq('household_id', profile.household_id),
+    supabase.from('categories').select('*').eq('household_id', profile.household_id),
+  ])
+  const banks = banksRes.data || []
+  const categories = catsRes.data || []
+  const type = /\b(recebi|receita|ganhei|sal[aá]rio|pagamento|trabalho)\b/.test(text) ? 'receita' : 'despesa'
+  const bank = banks.find((b: any) => text.includes(String(b.name).toLowerCase()))
+    || banks.find((b: any) => text.includes('cartao') || text.includes('cartão') ? b.type === 'credito' : false)
+    || null
+  const category = categories.find((c: any) => c.type !== (type === 'receita' ? 'despesa' : 'receita') && text.includes(String(c.name).toLowerCase()))
+    || categories.find((c: any) => c.type !== (type === 'receita' ? 'despesa' : 'receita'))
+    || null
+
+  const cleaned = raw
+    .replace(/(?:lance|lan[cç]a|registre|adicione|coloque)\s*/i, '')
+    .replace(/(?:r\$\s*)?\d{1,3}(?:\.\d{3})*(?:,\d{2})?|(?:r\$\s*)?\d+(?:[,.]\d{1,2})?/i, '')
+    .replace(/\b(no|na|com|cart[aã]o|pix|boleto|d[eé]bito|cr[eé]dito|hoje|ontem)\b/gi, '')
+    .replace(bank?.name || '', '')
+    .trim()
+  const description = cleaned.length >= 3 ? cleaned : type === 'receita' ? 'Receita lançada pela Fina' : 'Despesa lançada pela Fina'
+  const paymentMethod = bank?.type === 'credito' ? 'credito'
+    : text.includes('pix') ? 'pix'
+    : text.includes('boleto') ? 'boleto'
+    : bank?.type === 'debito' ? 'debito'
+    : bank?.type === 'dinheiro' ? 'dinheiro'
+    : 'outro'
+
+  const date = text.includes('ontem')
+    ? format(subDays(new Date(), 1), 'yyyy-MM-dd')
+    : format(new Date(), 'yyyy-MM-dd')
+
+  const { error } = await supabase.from('transactions').insert({
+    household_id: profile.household_id,
+    created_by: profile.id,
+    date,
+    description,
+    amount,
+    type,
+    category_id: category?.id || null,
+    bank_id: bank?.id || null,
+    status: 'realizado',
+    notes: 'Lançado pela Fina via chat',
+    is_recurring: false,
+    responsible_party: text.includes('neusa') ? 'sogra' : 'casal',
+    is_reimbursed: false,
+    payment_method: paymentMethod,
+  })
+
+  if (error) return `Tentei lançar, mas o banco retornou erro: ${error.message}`
+  return `Lançado com sucesso: ${description}, ${type === 'receita' ? 'receita' : 'despesa'} de ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}${bank ? ` em ${bank.name}` : ''}.`
 }
 
 async function buildFinancialContext(supabase: any, userId: string): Promise<AIContext> {
