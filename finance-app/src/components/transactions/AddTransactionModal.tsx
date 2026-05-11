@@ -7,6 +7,7 @@ import { X } from 'lucide-react'
 import { NumericFormat } from 'react-number-format'
 import { toast } from 'sonner'
 import { addMonths, format } from 'date-fns'
+import { getCreditCardPaymentDate } from '@/lib/finance-dates'
 import type { Category, Bank, Transaction, TransactionType, TransactionStatus } from '@/types'
 
 interface Props {
@@ -93,6 +94,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
   )
   const selectedBank = banks.find(bank => bank.id === bankId)
   const isCreditExpense = !!selectedBank && selectedBank.type === 'credito' && type !== 'receita'
+  const firstInvoiceDate = isCreditExpense ? getCreditCardPaymentDate(date, selectedBank?.due_day) : null
 
   const reset = () => {
     setDate(format(new Date(), 'yyyy-MM-dd'))
@@ -307,12 +309,29 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#FB923C' }}>
-                    Parcelamento no cartao
+                    Cartao de credito
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>
-                    Cada parcela entra na fatura do mes correspondente.
+                    Registre como despesa. A fatura e prevista pelo vencimento do cartao.
                   </p>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>1a fatura</p>
+                  <p className="text-xs font-bold mt-0.5" style={{ color: '#F1F5F9' }}>
+                    {firstInvoiceDate?.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' })}
+                  </p>
+                </div>
+                <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Vencimento</p>
+                  <p className="text-xs font-bold mt-0.5" style={{ color: selectedBank?.due_day ? '#F1F5F9' : '#FBBF24' }}>
+                    {selectedBank?.due_day ? `Dia ${selectedBank.due_day}` : 'Configure no banco'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Parcelas</p>
                 <input
                   type="number"
                   min={1}
