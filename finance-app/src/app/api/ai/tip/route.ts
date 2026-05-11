@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase/server'
 import { generateDailyTip } from '@/lib/ai'
 import { AIContext } from '@/types'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
+import { NextRequest } from 'next/server'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -21,24 +22,31 @@ export async function GET() {
     if (!profile?.household_id) return NextResponse.json({ tip: '💡 Cadastre seus primeiros lançamentos para receber dicas personalizadas!' })
 
     const hid = profile.household_id
-    const now = new Date()
-    const start = format(startOfMonth(now), 'yyyy-MM-dd')
-    const end = format(endOfMonth(now), 'yyyy-MM-dd')
+    const params = req.nextUrl.searchParams
+    const selectedMonth = Number(params.get('month')) || new Date().getMonth() + 1
+    const selectedYear = Number(params.get('year')) || new Date().getFullYear()
+    const selectedDate = new Date(selectedYear, selectedMonth - 1, 1)
+    const start = format(startOfMonth(selectedDate), 'yyyy-MM-dd')
+    const end = format(endOfMonth(selectedDate), 'yyyy-MM-dd')
 
     const { data: txs } = await supabase
       .from('transactions')
-      .select('amount, type, category:categories(name, icon)')
+      .select('amount, type, status, category:categories(name, icon)')
       .eq('household_id', hid)
-      .eq('status', 'realizado')
       .gte('date', start).lte('date', end)
 
-    const income = (txs || []).filter(t => t.type === 'receita').reduce((s, t) => s + Number(t.amount), 0)
-    const expenses = (txs || []).filter(t => t.type !== 'receita').reduce((s, t) => s + Number(t.amount), 0)
+    const income = (txs || []).filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+    const plannedIncome = (txs || []).filter(t => t.type === 'receita' && t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+    const expenses = (txs || []).filter(t => t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+    const plannedExpenses = (txs || []).filter(t => t.type !== 'receita' && t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
 
     const context: AIContext = {
       current_month_income: income,
       current_month_expenses: expenses,
       current_month_balance: income - expenses,
+      planned_month_income: plannedIncome,
+      planned_month_expenses: plannedExpenses,
+      projected_month_balance: income + plannedIncome - expenses - plannedExpenses,
       top_expense_categories: [],
       goals: [],
       monthly_history: [],

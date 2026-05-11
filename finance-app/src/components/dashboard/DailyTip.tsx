@@ -3,27 +3,29 @@
 import { useEffect, useState } from 'react'
 import { Sparkles, RefreshCw } from 'lucide-react'
 
-export function DailyTip() {
+export function DailyTip({ month }: { month?: Date }) {
   const [tip, setTip]       = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const cacheKey = month
+    ? `daily-tip-${month.getFullYear()}-${month.getMonth() + 1}`
+    : 'daily-tip'
 
   const fetchTip = async () => {
     setLoading(true)
     try {
-      const res  = await fetch('/api/ai/tip')
+      const query = month ? `?month=${month.getMonth() + 1}&year=${month.getFullYear()}` : ''
+      const res  = await fetch(`/api/ai/tip${query}`)
       const data = await res.json()
       setTip(data.tip)
-      sessionStorage.setItem('daily-tip', data.tip)
-      sessionStorage.setItem('daily-tip-date', new Date().toDateString())
+      sessionStorage.setItem(cacheKey, data.tip)
     } catch { /* silencioso */ } finally { setLoading(false) }
   }
 
   useEffect(() => {
-    const cached     = sessionStorage.getItem('daily-tip')
-    const cachedDate = sessionStorage.getItem('daily-tip-date')
-    if (cached && cachedDate === new Date().toDateString()) setTip(cached)
+    const cached = sessionStorage.getItem(cacheKey)
+    if (cached) setTip(cached)
     else fetchTip()
-  }, [])
+  }, [cacheKey])
 
   if (!tip && !loading) return null
 

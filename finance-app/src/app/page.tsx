@@ -18,7 +18,7 @@ import { DollarRate } from '@/components/dashboard/DollarRate'
 import { MonthSelector } from '@/components/ui/MonthSelector'
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal'
 import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
-import { RefreshCw, TrendingUp, PiggyBank, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import { RefreshCw, TrendingUp, PiggyBank, Wallet, ArrowUpRight, ArrowDownRight, X, Landmark } from 'lucide-react'
 import type { Transaction, Goal, Category, Budget, Bank } from '@/types'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -32,6 +32,61 @@ const fadeUp = (delay = 0) => ({
 })
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+type DetailKind = 'income' | 'expenses' | 'balance' | 'planned' | 'neusa' | 'future-income' | 'future-couple' | 'future-card'
+
+function DetailModal({ open, title, subtitle, transactions, onClose }: {
+  open: boolean
+  title: string
+  subtitle?: string
+  transactions: Transaction[]
+  onClose: () => void
+}) {
+  if (!open) return null
+  const total = transactions.reduce((sum, tx) => sum + Number(tx.amount), 0)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+      <div className="absolute inset-0 bg-black/55 backdrop-blur-md" onClick={onClose} />
+      <div className="relative w-full md:max-w-2xl max-h-[82dvh] rounded-t-3xl md:rounded-2xl overflow-hidden"
+        style={{ background: 'rgba(13,13,26,0.92)', border: '1px solid rgba(129,140,248,0.25)', boxShadow: '0 24px 80px rgba(0,0,0,0.45)' }}>
+        <div className="flex items-start justify-between gap-4 p-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div>
+            <p className="text-sm font-bold" style={{ color: '#F1F5F9' }}>{title}</p>
+            {subtitle && <p className="text-xs mt-1" style={{ color: '#64748B' }}>{subtitle}</p>}
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="text-sm font-bold font-mono-nums" style={{ color: '#C7D2FE' }}>{brl(total)}</p>
+            <button onClick={onClose} className="p-1.5 rounded-xl" style={{ color: '#64748B' }}>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-2 overflow-y-auto max-h-[64dvh]">
+          {transactions.length === 0 ? (
+            <p className="text-sm text-center py-8" style={{ color: '#64748B' }}>Nenhum lançamento neste grupo.</p>
+          ) : transactions.map(tx => (
+            <div key={tx.id} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate" style={{ color: '#F1F5F9' }}>{tx.description}</p>
+                <p className="text-[11px]" style={{ color: '#64748B' }}>
+                  {format(new Date(`${tx.date}T12:00:00`), 'dd/MM/yyyy')} · {tx.status}
+                  {tx.bank?.name ? ` · ${tx.bank.name}` : ''}
+                  {tx.responsible_party === 'sogra' ? ' · Neusa' : ''}
+                </p>
+              </div>
+              <p className="text-sm font-bold font-mono-nums flex-shrink-0" style={{ color: tx.type === 'receita' ? '#34D399' : '#F87171' }}>
+                {tx.type === 'receita' ? '+' : '-'}{brl(Number(tx.amount))}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -137,6 +192,34 @@ function QuickStats({ income, expenses, balance, prevBalance, loading }: {
   )
 }
 
+function AccountBalancesCard({ banks, loading }: { banks: Bank[]; loading: boolean }) {
+  const cashBanks = banks.filter(bank => bank.type !== 'credito')
+  const total = cashBanks.reduce((sum, bank) => sum + Number(bank.current_balance || 0), 0)
+
+  if (loading) return <div className="skeleton h-24 rounded-2xl" />
+  if (cashBanks.length === 0) return null
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(34,211,238,0.07)', border: '1px solid rgba(34,211,238,0.18)' }}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Landmark className="w-4 h-4" style={{ color: '#22D3EE' }} />
+          <p className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>Saldo atual das contas</p>
+        </div>
+        <p className="text-sm font-bold font-mono-nums" style={{ color: total >= 0 ? '#34D399' : '#F87171' }}>{brl(total)}</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {cashBanks.map(bank => (
+          <div key={bank.id} className="rounded-xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <p className="text-[10px] uppercase tracking-wide truncate" style={{ color: '#64748B' }}>{bank.name}</p>
+            <p className="text-sm font-bold font-mono-nums mt-0.5" style={{ color: '#F1F5F9' }}>{brl(Number(bank.current_balance || 0))}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -155,7 +238,7 @@ export default function DashboardPage() {
   const [loading, setLoading]   = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [prevBalance, setPrevBalance] = useState(0)
-  const [dashboardView, setDashboardView] = useState<'casal' | 'neusa' | 'todos'>('casal')
+  const [detailKind, setDetailKind] = useState<DetailKind | null>(null)
 
   // Pull-to-refresh
   const [pullY, setPullY]       = useState(0)
@@ -259,17 +342,13 @@ export default function DashboardPage() {
   })
   const cashTransactions = transactions.filter(tx => !isCreditTx(tx))
   const financialTransactions = [...cashTransactions, ...creditInvoiceDueThisMonth]
-  const isInDashboardView = (tx: Transaction) => {
-    const party = tx.responsible_party || 'casal'
-    if (dashboardView === 'todos') return true
-    if (dashboardView === 'neusa') return party === 'sogra'
-    return party === 'casal' || (party === 'sogra' && !tx.is_reimbursed)
-  }
-  const visibleCashTransactions = cashTransactions.filter(isInDashboardView)
-  const visibleCreditInvoices = creditInvoiceDueThisMonth.filter(isInDashboardView)
+  const isCouple = (tx: Transaction) => (tx.responsible_party || 'casal') === 'casal'
+  const isNeusa = (tx: Transaction) => tx.responsible_party === 'sogra'
+  const visibleCashTransactions = cashTransactions.filter(isCouple)
+  const visibleCreditInvoices = creditInvoiceDueThisMonth.filter(isCouple)
   const coupleFinancialTransactions = financialTransactions.filter(tx => (tx.responsible_party || 'casal') === 'casal')
 
-  const visibleIncomeTransactions = transactions.filter(t => t.type === 'receita' && isInDashboardView(t))
+  const visibleIncomeTransactions = transactions.filter(t => t.type === 'receita')
   const income = visibleIncomeTransactions.filter(t => t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
   const plannedIncome = visibleIncomeTransactions.filter(t => t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
   const expenses = visibleCashTransactions
@@ -282,6 +361,25 @@ export default function DashboardPage() {
   const plannedExpenses = plannedCashExpenses + plannedCreditInvoices
   const pending = plannedExpenses
   const balance  = income - expenses
+  const projectedBalance = income + plannedIncome - expenses - plannedExpenses
+  const neusaTransactions = financialTransactions.filter(isNeusa)
+  const neusaTotal = neusaTransactions.reduce((s, t) => s + Number(t.amount), 0)
+  const neusaCardTotal = creditInvoiceDueThisMonth.filter(isNeusa).reduce((s, t) => s + Number(t.amount), 0)
+  const neusaReceivable = neusaTransactions
+    .filter(t => !t.is_reimbursed)
+    .reduce((s, t) => s + Number(t.amount), 0)
+  const cardInvoiceTotal = creditInvoiceDueThisMonth.reduce((s, t) => s + Number(t.amount), 0)
+
+  const details: Record<DetailKind, { title: string; subtitle: string; transactions: Transaction[] }> = {
+    income: { title: 'Receitas do mês', subtitle: 'Recebidas e previstas/agendadas no mês selecionado', transactions: visibleIncomeTransactions },
+    expenses: { title: 'Despesas do casal', subtitle: 'Saídas de caixa realizadas e agendadas, sem compras de crédito antes da fatura', transactions: visibleCashTransactions.filter(t => t.type !== 'receita') },
+    balance: { title: 'Composição do saldo', subtitle: `Realizado ${brl(balance)} · Projetado ${brl(projectedBalance)}`, transactions: [...visibleIncomeTransactions, ...visibleCashTransactions.filter(t => t.type !== 'receita'), ...visibleCreditInvoices] },
+    planned: { title: 'Previstos e faturas', subtitle: 'Despesas agendadas e compras de cartão pela fatura do mês', transactions: [...visibleCashTransactions.filter(t => t.type !== 'receita' && t.status !== 'realizado'), ...visibleCreditInvoices] },
+    neusa: { title: 'Neusa no mês', subtitle: `Cartão ${brl(neusaCardTotal)} · a receber ${brl(neusaReceivable)}`, transactions: neusaTransactions },
+    'future-income': { title: 'Receber na prévia', subtitle: 'Receitas do próximo mês selecionado na prévia', transactions: nextMonthTransactions.filter(t => t.type === 'receita') },
+    'future-couple': { title: 'Casal na prévia', subtitle: 'Despesas diretas do casal no próximo mês', transactions: nextMonthTransactions.filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === 'casal' && !isCreditTx(t)) },
+    'future-card': { title: 'Fatura real da prévia', subtitle: 'Compras que caem na fatura prevista', transactions: creditInvoiceTransactions.filter(tx => tx.type !== 'receita' && tx.status === 'realizado' && isDateInMonth(getCreditCardPaymentDate(tx.date, bankById.get(tx.bank_id || '')?.due_day, bankById.get(tx.bank_id || '')?.closing_day), addMonths(currentDate, 1))) },
+  }
 
   const byCategory = categories
     .map(cat => ({
@@ -353,25 +451,8 @@ export default function DashboardPage() {
             <MonthSelector value={currentDate} onChange={d => { setCurrentDate(d); setLoading(true) }} />
           </motion.div>
 
-          <motion.div {...fadeUp(0.065)} className="flex justify-center">
-            <div className="inline-flex gap-1 p-1 rounded-2xl" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              {[
-                { id: 'casal', label: 'Casal' },
-                { id: 'neusa', label: 'Neusa' },
-                { id: 'todos', label: 'Todos' },
-              ].map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setDashboardView(item.id as 'casal' | 'neusa' | 'todos')}
-                  className="px-4 py-1.5 rounded-xl text-xs font-semibold transition-all"
-                  style={dashboardView === item.id
-                    ? { background: 'rgba(129,140,248,0.18)', color: '#C7D2FE', border: '1px solid rgba(129,140,248,0.3)' }
-                    : { color: '#64748B', border: '1px solid transparent' }}>
-                  {item.label}
-                </button>
-              ))}
-            </div>
+          <motion.div {...fadeUp(0.065)}>
+            <DailyTip month={currentDate} />
           </motion.div>
 
           {/* ── Row 3: Main balance card (quick stats) ── */}
@@ -387,8 +468,10 @@ export default function DashboardPage() {
               pending={pending}
               plannedIncome={plannedIncome}
               plannedExpenses={plannedExpenses}
-              viewLabel={dashboardView === 'casal' ? 'visao casal' : dashboardView === 'neusa' ? 'visao Neusa' : 'visao geral'}
+              neusaTotal={neusaTotal}
+              neusaReceivable={neusaReceivable}
               loading={loading}
+              onOpen={setDetailKind}
             />
           </motion.div>
 
@@ -400,7 +483,12 @@ export default function DashboardPage() {
               creditTransactions={creditInvoiceTransactions}
               banks={banks}
               loading={loading}
+              onOpen={setDetailKind}
             />
+          </motion.div>
+
+          <motion.div {...fadeUp(0.145)}>
+            <AccountBalancesCard banks={banks} loading={loading} />
           </motion.div>
 
           {/* ── Row 5: Patrimônio (savings + investments) ── */}
@@ -409,11 +497,6 @@ export default function DashboardPage() {
               <PatrimonyCard householdId={profile.household_id} loading={loading} />
             </motion.div>
           )}
-
-          {/* ── Row 6: AI tip ── */}
-          <motion.div {...fadeUp(0.18)}>
-            <DailyTip />
-          </motion.div>
 
           {/* ── Row 7: Charts ── */}
           <motion.div {...fadeUp(0.21)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -445,6 +528,13 @@ export default function DashboardPage() {
       </div>
 
       <AddTransactionModal open={showAddModal} onClose={() => setShowAddModal(false)} onSuccess={fetchData} />
+      <DetailModal
+        open={!!detailKind}
+        title={detailKind ? details[detailKind].title : ''}
+        subtitle={detailKind ? details[detailKind].subtitle : ''}
+        transactions={detailKind ? details[detailKind].transactions : []}
+        onClose={() => setDetailKind(null)}
+      />
     </AppLayout>
   )
 }

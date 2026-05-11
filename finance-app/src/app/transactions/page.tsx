@@ -6,7 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { MonthSelector } from '@/components/ui/MonthSelector'
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal'
 import { BankLogo } from '@/components/ui/BankLogo'
-import { format, startOfMonth, endOfMonth } from 'date-fns'
+import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { CheckCircle2, HandCoins, Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
@@ -320,6 +320,7 @@ export default function TransactionsPage() {
   const supabase = createClient()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [creditInvoiceTransactions, setCreditInvoiceTransactions] = useState<Transaction[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [banks, setBanks] = useState<Bank[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -348,8 +349,10 @@ export default function TransactionsPage() {
     const hid   = prof.household_id
     const start = format(startOfMonth(currentDate), 'yyyy-MM-dd')
     const end   = format(endOfMonth(currentDate), 'yyyy-MM-dd')
+    const creditStart = format(startOfMonth(subMonths(currentDate, 2)), 'yyyy-MM-dd')
+    const creditEnd = format(endOfMonth(addMonths(currentDate, 1)), 'yyyy-MM-dd')
 
-    const [txRes, cRes, bRes, pRes] = await Promise.all([
+    const [txRes, creditTxRes, cRes, bRes, pRes] = await Promise.all([
       supabase
         .from('transactions')
         .select('*, category:categories(*), bank:banks(*), profile:profiles(id,name,avatar_color,avatar_emoji)')
@@ -357,12 +360,19 @@ export default function TransactionsPage() {
         .gte('date', start).lte('date', end)
         .order('date', { ascending: false })
         .order('created_at', { ascending: false }),
+      supabase
+        .from('transactions')
+        .select('*, category:categories(*), bank:banks(*), profile:profiles(id,name,avatar_color,avatar_emoji)')
+        .eq('household_id', hid)
+        .gte('date', creditStart).lte('date', creditEnd)
+        .order('date', { ascending: false }),
       supabase.from('categories').select('*').eq('household_id', hid).order('name'),
       supabase.from('banks').select('*').eq('household_id', hid).order('name'),
       supabase.from('profiles').select('*').eq('household_id', hid),
     ])
 
     setTransactions(txRes.data || [])
+    setCreditInvoiceTransactions(creditTxRes.data || [])
     setCategories(cRes.data || [])
     setBanks(bRes.data || [])
     setProfiles(pRes.data || [])
@@ -425,18 +435,30 @@ export default function TransactionsPage() {
     return true
   })
 
+  const bankById = new Map(banks.map(bank => [bank.id, bank]))
+  const isCreditTx = (tx: Transaction) => bankById.get(tx.bank_id || '')?.type === 'credito'
+  const creditInvoiceDueThisMonth = creditInvoiceTransactions.filter(tx => {
+    const bank = bankById.get(tx.bank_id || '')
+    if (!bank || bank.type !== 'credito' || tx.type === 'receita' || tx.status !== 'realizado') return false
+    const invoiceDate = getCreditCardPaymentDate(tx.date, bank.due_day, bank.closing_day)
+    return invoiceDate >= startOfMonth(currentDate) && invoiceDate <= endOfMonth(currentDate)
+  })
+  const cashTransactions = transactions.filter(tx => !isCreditTx(tx))
+  const monthFinancialTransactions = [...cashTransactions, ...creditInvoiceDueThisMonth]
+
   const income = transactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const globalExpenses = transactions.filter(t => t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const coupleExpenses = transactions
-    .filter(t => t.type !== 'receita' && t.status === 'realizado' && (t.responsible_party || 'casal') === 'casal')
+  const plannedIncome = transactions.filter(t => t.type === 'receita' && t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const globalExpenses = monthFinancialTransactions.filter(t => t.type !== 'receita').reduce((s, t) => s + Number(t.amount), 0)
+  const coupleExpenses = monthFinancialTransactions
+    .filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === 'casal')
     .reduce((s, t) => s + Number(t.amount), 0)
-  const neusaExpenses = transactions
-    .filter(t => t.type !== 'receita' && t.status === 'realizado' && t.responsible_party === 'sogra')
+  const neusaExpenses = monthFinancialTransactions
+    .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra')
     .reduce((s, t) => s + Number(t.amount), 0)
-  const neusaPending = transactions
-    .filter(t => t.type !== 'receita' && t.status === 'realizado' && t.responsible_party === 'sogra' && !t.is_reimbursed)
+  const neusaPending = monthFinancialTransactions
+    .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra' && !t.is_reimbursed)
     .reduce((s, t) => s + Number(t.amount), 0)
-  const balance  = income - coupleExpenses - neusaPending
+  const balance  = income + plannedIncome - coupleExpenses - neusaPending
 
   const activeFilterCount = [filterType, filterCategoryId, filterBankId, filterProfileId, filterResponsible].filter(Boolean).length
 
@@ -462,7 +484,7 @@ export default function TransactionsPage() {
 
         {/* Summary */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          <SummaryChip label="Receitas" value={income} color="#34D399" />
+          <SummaryChip label="Receitas" value={income + plannedIncome} color="#34D399" />
           <SummaryChip label="Casal" value={coupleExpenses} color="#818CF8" />
           <SummaryChip label="Neusa" value={neusaExpenses} color="#F9A8D4" />
           <SummaryChip label="Global" value={globalExpenses} color="#FB923C" />

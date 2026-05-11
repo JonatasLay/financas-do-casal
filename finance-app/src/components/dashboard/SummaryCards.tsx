@@ -8,15 +8,17 @@ interface SummaryCardsProps {
   pending: number
   plannedIncome?: number
   plannedExpenses?: number
-  viewLabel?: string
+  neusaTotal?: number
+  neusaReceivable?: number
   loading: boolean
+  onOpen?: (kind: 'income' | 'expenses' | 'balance' | 'planned' | 'neusa') => void
 }
 
 function fmt(n: number) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export function SummaryCards({ income, expenses, pending, plannedIncome = 0, plannedExpenses = 0, viewLabel = 'este mes', loading }: SummaryCardsProps) {
+export function SummaryCards({ income, expenses, pending, plannedIncome = 0, plannedExpenses = 0, neusaTotal = 0, neusaReceivable = 0, loading, onOpen }: SummaryCardsProps) {
   const balance = income - expenses
   const projectedBalance = income + plannedIncome - expenses - plannedExpenses
   const spentPct = income > 0 ? Math.round((expenses / income) * 100) : 0
@@ -32,9 +34,9 @@ export function SummaryCards({ income, expenses, pending, plannedIncome = 0, pla
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {/* Receita */}
-      <div className="rounded-2xl p-4 col-span-1" style={{
+      <button type="button" onClick={() => onOpen?.('income')} className="rounded-2xl p-4 col-span-1 text-left transition-transform active:scale-[0.99]" style={{
         background: 'linear-gradient(135deg, rgba(52,211,153,0.15), rgba(52,211,153,0.05))',
         border: '1px solid rgba(52,211,153,0.25)',
       }}>
@@ -43,11 +45,11 @@ export function SummaryCards({ income, expenses, pending, plannedIncome = 0, pla
           <TrendingUp className="w-4 h-4" style={{ color: '#34D399' }} />
         </div>
         <p className="text-xl font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{fmt(income)}</p>
-        <p className="text-xs mt-1" style={{ color: '#64748B' }}>{plannedIncome > 0 ? `+ ${fmt(plannedIncome)} previsto` : viewLabel}</p>
-      </div>
+        <p className="text-xs mt-1" style={{ color: '#64748B' }}>{plannedIncome > 0 ? `+ ${fmt(plannedIncome)} previsto` : 'recebido'}</p>
+      </button>
 
       {/* Despesa */}
-      <div className="rounded-2xl p-4 col-span-1" style={{
+      <button type="button" onClick={() => onOpen?.('expenses')} className="rounded-2xl p-4 col-span-1 text-left transition-transform active:scale-[0.99]" style={{
         background: 'linear-gradient(135deg, rgba(248,113,113,0.15), rgba(248,113,113,0.05))',
         border: '1px solid rgba(248,113,113,0.25)',
       }}>
@@ -57,10 +59,10 @@ export function SummaryCards({ income, expenses, pending, plannedIncome = 0, pla
         </div>
         <p className="text-xl font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{fmt(expenses)}</p>
         <p className="text-xs mt-1" style={{ color: '#64748B' }}>{plannedExpenses > 0 ? `+ ${fmt(plannedExpenses)} previsto` : `${spentPct}% da renda`}</p>
-      </div>
+      </button>
 
       {/* Saldo */}
-      <div className="rounded-2xl p-4 col-span-1" style={{
+      <button type="button" onClick={() => onOpen?.('balance')} className="rounded-2xl p-4 col-span-1 text-left transition-transform active:scale-[0.99]" style={{
         background: balance >= 0
           ? 'linear-gradient(135deg, rgba(129,140,248,0.15), rgba(129,140,248,0.05))'
           : 'linear-gradient(135deg, rgba(248,113,113,0.15), rgba(248,113,113,0.05))',
@@ -74,10 +76,10 @@ export function SummaryCards({ income, expenses, pending, plannedIncome = 0, pla
           {balance >= 0 ? '+' : ''}{fmt(balance)}
         </p>
         <p className="text-xs mt-1" style={{ color: '#64748B' }}>Projetado: {projectedBalance >= 0 ? '+' : ''}{fmt(projectedBalance)}</p>
-      </div>
+      </button>
 
       {/* Previsto */}
-      <div className="rounded-2xl p-4 col-span-1" style={{
+      <button type="button" onClick={() => onOpen?.('planned')} className="rounded-2xl p-4 col-span-1 text-left transition-transform active:scale-[0.99]" style={{
         background: 'linear-gradient(135deg, rgba(251,191,36,0.15), rgba(251,191,36,0.05))',
         border: '1px solid rgba(251,191,36,0.25)',
       }}>
@@ -87,7 +89,22 @@ export function SummaryCards({ income, expenses, pending, plannedIncome = 0, pla
         </div>
         <p className="text-xl font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{fmt(pending)}</p>
         <p className="text-xs mt-1" style={{ color: '#64748B' }}>despesas e faturas</p>
-      </div>
+      </button>
+
+      {/* Neusa */}
+      <button type="button" onClick={() => onOpen?.('neusa')} className="rounded-2xl p-4 col-span-2 md:col-span-1 text-left transition-transform active:scale-[0.99]" style={{
+        background: 'linear-gradient(135deg, rgba(244,114,182,0.15), rgba(244,114,182,0.05))',
+        border: '1px solid rgba(244,114,182,0.25)',
+      }}>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-medium" style={{ color: '#F9A8D4' }}>Neusa</p>
+          <span className="text-base">↩</span>
+        </div>
+        <p className="text-xl font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{fmt(neusaTotal)}</p>
+        <p className="text-xs mt-1" style={{ color: neusaReceivable > 0 ? '#FB923C' : '#64748B' }}>
+          {neusaReceivable > 0 ? `${fmt(neusaReceivable)} a receber` : 'sem reembolso pendente'}
+        </p>
+      </button>
     </div>
   )
 }

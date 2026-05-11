@@ -13,13 +13,14 @@ interface Props {
   creditTransactions: Transaction[]
   banks: Bank[]
   loading?: boolean
+  onOpen?: (kind: 'future-income' | 'future-couple' | 'future-card') => void
 }
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const isCoupleExpense = (tx: Transaction) => (tx.responsible_party || 'casal') === 'casal'
 const isNeusaExpense = (tx: Transaction) => tx.responsible_party === 'sogra'
 
-export function FuturePreview({ targetMonth, transactions, creditTransactions, banks, loading }: Props) {
+export function FuturePreview({ targetMonth, transactions, creditTransactions, banks, loading, onOpen }: Props) {
   const creditCards = banks.filter(bank => bank.type === 'credito')
   const bankById = new Map(banks.map(bank => [bank.id, bank]))
 
@@ -91,27 +92,33 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
           <CalendarClock className="w-4 h-4" style={{ color: '#22D3EE' }} />
           <p className="font-semibold text-sm capitalize" style={{ color: '#F1F5F9' }}>Prévia de {monthLabel}</p>
         </div>
-        <p className="text-sm font-bold font-mono-nums" style={{ color: projectedBalance >= 0 ? '#34D399' : '#F87171' }}>
+        <div className="rounded-xl px-3 py-2 text-right" style={{
+          background: projectedBalance >= 0 ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
+          border: `1px solid ${projectedBalance >= 0 ? 'rgba(52,211,153,0.2)' : 'rgba(248,113,113,0.2)'}`,
+        }}>
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Saldo previsto</p>
+          <p className="text-base font-bold font-mono-nums" style={{ color: projectedBalance >= 0 ? '#34D399' : '#F87171' }}>
           {projectedBalance >= 0 ? '+' : ''}{brl(projectedBalance)}
-        </p>
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-xl p-3" style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.18)' }}>
+        <button type="button" onClick={() => onOpen?.('future-income')} className="rounded-xl p-3 text-left" style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.18)' }}>
           <ArrowUpRight className="w-4 h-4 mb-2" style={{ color: '#34D399' }} />
           <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Receber</p>
           <p className="text-sm font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{brl(income)}</p>
-        </div>
-        <div className="rounded-xl p-3" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)' }}>
+        </button>
+        <button type="button" onClick={() => onOpen?.('future-couple')} className="rounded-xl p-3 text-left" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)' }}>
           <ArrowDownRight className="w-4 h-4 mb-2" style={{ color: '#F87171' }} />
           <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Casal</p>
           <p className="text-sm font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{brl(coupleOutflow)}</p>
-        </div>
-        <div className="rounded-xl p-3" style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.18)' }}>
+        </button>
+        <button type="button" onClick={() => onOpen?.('future-card')} className="rounded-xl p-3 text-left" style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.18)' }}>
           <CreditCard className="w-4 h-4 mb-2" style={{ color: '#FB923C' }} />
           <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Fatura real</p>
           <p className="text-sm font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{brl(creditTotal)}</p>
-        </div>
+        </button>
       </div>
 
       {(neusaTotal > 0 || neusaPending > 0) && (
