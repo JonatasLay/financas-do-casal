@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, List, Target, Bot, Settings, LogOut,
-  TrendingUp, Plus, PiggyBank, LineChart, Wallet,
+  Plus, PiggyBank, LineChart,
 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -63,9 +63,9 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
         {/* Logo */}
         <div className="p-5" style={{ borderBottom: '1px solid rgba(129,140,248,0.08)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #818CF8, #F472B6)', boxShadow: '0 0 20px rgba(129,140,248,0.4)' }}>
-              <Wallet className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden"
+              style={{ background: 'rgba(255,255,255,0.08)', boxShadow: '0 0 20px rgba(129,140,248,0.25)' }}>
+              <img src="/icons/icon-192.png" alt="Financas do Casal" className="w-full h-full object-cover" />
             </div>
             <div>
               <p className="font-bold text-sm" style={{ color: '#F1F5F9' }}>Finanças do Casal</p>
@@ -101,9 +101,11 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
         <div className="p-3" style={{ borderTop: '1px solid rgba(129,140,248,0.08)' }}>
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
             style={{ background: 'rgba(255,255,255,0.03)' }}>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 overflow-hidden ring-1 ring-white/10"
               style={{ background: profile?.avatar_color || '#818CF8', boxShadow: `0 0 12px ${profile?.avatar_color || '#818CF8'}60` }}>
-              {profile?.avatar_emoji || initials}
+              {profile?.avatar_url
+                ? <img src={profile.avatar_url} alt={profile?.name || 'Avatar'} className="block w-full h-full rounded-full object-cover" />
+                : profile?.avatar_emoji || initials}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate" style={{ color: '#F1F5F9' }}>{profile?.name || '...'}</p>
@@ -131,9 +133,9 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
             WebkitBackdropFilter: 'blur(20px)',
           }}>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #818CF8, #F472B6)' }}>
-              <TrendingUp className="w-4 h-4 text-white" />
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden"
+              style={{ background: 'rgba(255,255,255,0.08)' }}>
+              <img src="/icons/icon-192.png" alt="Financas do Casal" className="w-full h-full object-cover" />
             </div>
             <span className="font-bold text-sm" style={{ color: '#F1F5F9' }}>Finanças do Casal</span>
           </div>
@@ -151,9 +153,11 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
                 <Plus className="w-4 h-4 text-white" />
               </Link>
             )}
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white overflow-hidden ring-1 ring-white/10"
               style={{ background: profile?.avatar_color || '#818CF8' }}>
-              {profile?.avatar_emoji || initials}
+              {profile?.avatar_url
+                ? <img src={profile.avatar_url} alt={profile?.name || 'Avatar'} className="block w-full h-full rounded-full object-cover" />
+                : profile?.avatar_emoji || initials}
             </div>
           </div>
         </header>
