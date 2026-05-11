@@ -8,7 +8,7 @@ import { NumericFormat } from 'react-number-format'
 import { toast } from 'sonner'
 import { addMonths, format } from 'date-fns'
 import { getCreditCardPaymentDate } from '@/lib/finance-dates'
-import type { Category, Bank, Transaction, TransactionType, TransactionStatus } from '@/types'
+import type { Category, Bank, Transaction, TransactionType, TransactionStatus, ResponsibleParty } from '@/types'
 
 interface Props {
   open: boolean
@@ -49,6 +49,8 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
   const [notes, setNotes] = useState('')
   const [isRecurring, setIsRecurring] = useState(false)
   const [installments, setInstallments] = useState(1)
+  const [responsibleParty, setResponsibleParty] = useState<ResponsibleParty>('casal')
+  const [isReimbursed, setIsReimbursed] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -82,6 +84,8 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       setNotes(editTransaction.notes || '')
       setIsRecurring(editTransaction.is_recurring || false)
       setInstallments(1)
+      setResponsibleParty(editTransaction.responsible_party || 'casal')
+      setIsReimbursed(!!editTransaction.is_reimbursed)
     } else {
       reset()
     }
@@ -107,6 +111,8 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
     setNotes('')
     setIsRecurring(false)
     setInstallments(1)
+    setResponsibleParty('casal')
+    setIsReimbursed(false)
   }
 
   const handleClose = () => { if (!isEdit) reset(); onClose() }
@@ -134,6 +140,8 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
         status,
         notes: notes.trim() || null,
         is_recurring: isRecurring,
+        responsible_party: responsibleParty,
+        is_reimbursed: responsibleParty === 'sogra' ? isReimbursed : false,
       }
 
       if (isEdit && editTransaction) {
@@ -367,6 +375,49 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
           </div>
 
           {/* Quem lançou */}
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: labelC }}>Responsavel pelo gasto</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { value: 'casal', label: 'Casal', detail: 'Jonatas / Thuany', color: '#818CF8' },
+                  { value: 'sogra', label: 'Neusa', detail: 'Reembolso da sogra', color: '#F472B6' },
+                ] as const).map(item => {
+                  const active = responsibleParty === item.value
+                  return (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => {
+                        setResponsibleParty(item.value)
+                        if (item.value === 'casal') setIsReimbursed(false)
+                      }}
+                      className="rounded-xl border-2 px-3 py-2.5 text-left transition-all"
+                      style={active
+                        ? { background: `${item.color}18`, borderColor: item.color, color: item.color }
+                        : { background: inputBg, borderColor: 'rgba(255,255,255,0.07)', color: '#94A3B8' }}
+                    >
+                      <p className="text-sm font-semibold">{item.label}</p>
+                      <p className="text-[10px] mt-0.5 opacity-70">{item.detail}</p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {responsibleParty === 'sogra' && (
+              <label className="flex items-center gap-3 p-3.5 rounded-xl cursor-pointer"
+                style={{ background: 'rgba(244,114,182,0.07)', border: '1px solid rgba(244,114,182,0.18)' }}>
+                <input type="checkbox" checked={isReimbursed} onChange={e => setIsReimbursed(e.target.checked)}
+                  className="w-4 h-4 accent-pink-500 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: '#F1F5F9' }}>Neusa ja reembolsou</p>
+                  <p className="text-xs" style={{ color: '#64748B' }}>Use para separar pendente de reembolso recebido.</p>
+                </div>
+              </label>
+            )}
+          </div>
+
           {profile && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: labelC }}>Lançado por</p>

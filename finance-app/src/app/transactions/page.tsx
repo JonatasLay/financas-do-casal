@@ -8,11 +8,11 @@ import { AddTransactionModal } from '@/components/transactions/AddTransactionMod
 import { BankLogo } from '@/components/ui/BankLogo'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
+import { CheckCircle2, HandCoins, Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { getCreditCardPaymentDate } from '@/lib/finance-dates'
-import type { Transaction, Category, Bank, TransactionType, Profile } from '@/types'
+import type { Transaction, Category, Bank, TransactionType, Profile, ResponsibleParty } from '@/types'
 
 // ─── Transaction row with swipe + edit/delete ────────────────────────────────
 
@@ -46,11 +46,13 @@ function TransactionRow({
   onDelete,
   onEdit,
   onPay,
+  onReimburse,
 }: {
   tx: Transaction
   onDelete: () => void
   onEdit: () => void
   onPay: () => void
+  onReimburse: () => void
 }) {
   const [offsetX, setOffsetX] = useState(0)
   const [touching, setTouching] = useState(false)
@@ -92,6 +94,8 @@ function TransactionRow({
   const invoiceDate = isCredit ? getCreditCardPaymentDate(tx.date, tx.bank?.due_day) : null
   const paid = tx.status === 'realizado'
   const statusLabel = paid && tx.type === 'receita' ? 'Recebido' : STATUS_LABEL[tx.status]
+  const isNeusa = tx.responsible_party === 'sogra'
+  const reimbursementPending = isNeusa && !tx.is_reimbursed
 
   return (
     <div className="relative overflow-hidden rounded-2xl mb-2">
@@ -169,12 +173,29 @@ function TransactionRow({
                   {installmentLabel}
                 </span>
               )}
+              {isNeusa && (
+                <span className="badge" style={{
+                  background: reimbursementPending ? 'rgba(251,146,60,0.12)' : 'rgba(52,211,153,0.1)',
+                  border: reimbursementPending ? '1px solid rgba(251,146,60,0.24)' : '1px solid rgba(52,211,153,0.2)',
+                  color: reimbursementPending ? '#FB923C' : '#34D399',
+                }}>
+                  {reimbursementPending ? 'Neusa a reembolsar' : 'Neusa reembolsou'}
+                </span>
+              )}
               {!paid && (
                 <button onClick={onPay}
                   className="md:hidden badge inline-flex items-center gap-1"
                   style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.22)', color: '#34D399' }}>
                   <CheckCircle2 className="w-3 h-3" />
                   {tx.type === 'receita' ? 'Receber' : 'Pagar'}
+                </button>
+              )}
+              {reimbursementPending && (
+                <button onClick={onReimburse}
+                  className="md:hidden badge inline-flex items-center gap-1"
+                  style={{ background: 'rgba(244,114,182,0.1)', border: '1px solid rgba(244,114,182,0.22)', color: '#F9A8D4' }}>
+                  <HandCoins className="w-3 h-3" />
+                  Reembolsou
                 </button>
               )}
               {tx.is_recurring && <span className="text-xs">🔄</span>}
@@ -191,6 +212,15 @@ function TransactionRow({
                   title={tx.type === 'receita' ? 'Marcar como recebido' : 'Marcar como pago'}>
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   {tx.type === 'receita' ? 'Receber' : 'Pagar'}
+                </button>
+              )}
+              {reimbursementPending && (
+                <button onClick={onReimburse}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1"
+                  style={{ color: '#F9A8D4', background: 'rgba(244,114,182,0.09)', border: '1px solid rgba(244,114,182,0.2)' }}
+                  title="Marcar reembolso da Neusa">
+                  <HandCoins className="w-3.5 h-3.5" />
+                  Reembolsou
                 </button>
               )}
               <button onClick={onEdit}
@@ -286,6 +316,7 @@ export default function TransactionsPage() {
   const [filterCategoryId, setFilterCategoryId] = useState('')
   const [filterBankId, setFilterBankId] = useState('')
   const [filterProfileId, setFilterProfileId] = useState('')
+  const [filterResponsible, setFilterResponsible] = useState<ResponsibleParty | ''>('')
 
   const fetchData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -348,6 +379,13 @@ export default function TransactionsPage() {
     setTransactions(prev => prev.map(item => item.id === tx.id ? { ...item, status: 'realizado' } : item))
   }
 
+  const handleReimburse = async (tx: Transaction) => {
+    const { error } = await supabase.from('transactions').update({ is_reimbursed: true }).eq('id', tx.id)
+    if (error) return void toast.error('Erro ao marcar reembolso')
+    toast.success('Reembolso da Neusa marcado')
+    setTransactions(prev => prev.map(item => item.id === tx.id ? { ...item, is_reimbursed: true } : item))
+  }
+
   const handleEdit = (tx: Transaction) => {
     setEditingTx(tx)
     setShowModal(true)
@@ -364,17 +402,27 @@ export default function TransactionsPage() {
     if (filterCategoryId && tx.category_id !== filterCategoryId) return false
     if (filterBankId && tx.bank_id !== filterBankId) return false
     if (filterProfileId && tx.created_by !== filterProfileId) return false
+    if (filterResponsible && (tx.responsible_party || 'casal') !== filterResponsible) return false
     return true
   })
 
-  const income   = transactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const expenses = transactions.filter(t => t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const balance  = income - expenses
+  const income = transactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const globalExpenses = transactions.filter(t => t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const coupleExpenses = transactions
+    .filter(t => t.type !== 'receita' && t.status === 'realizado' && (t.responsible_party || 'casal') === 'casal')
+    .reduce((s, t) => s + Number(t.amount), 0)
+  const neusaExpenses = transactions
+    .filter(t => t.type !== 'receita' && t.status === 'realizado' && t.responsible_party === 'sogra')
+    .reduce((s, t) => s + Number(t.amount), 0)
+  const neusaPending = transactions
+    .filter(t => t.type !== 'receita' && t.status === 'realizado' && t.responsible_party === 'sogra' && !t.is_reimbursed)
+    .reduce((s, t) => s + Number(t.amount), 0)
+  const balance  = income - coupleExpenses - neusaPending
 
-  const activeFilterCount = [filterType, filterCategoryId, filterBankId, filterProfileId].filter(Boolean).length
+  const activeFilterCount = [filterType, filterCategoryId, filterBankId, filterProfileId, filterResponsible].filter(Boolean).length
 
   const clearFilters = () => {
-    setFilterType(''); setFilterCategoryId(''); setFilterBankId(''); setFilterProfileId('')
+    setFilterType(''); setFilterCategoryId(''); setFilterBankId(''); setFilterProfileId(''); setFilterResponsible('')
   }
 
   return (
@@ -394,11 +442,22 @@ export default function TransactionsPage() {
         <MonthSelector value={currentDate} onChange={d => { setCurrentDate(d); setLoading(true) }} />
 
         {/* Summary */}
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           <SummaryChip label="Receitas" value={income} color="#34D399" />
-          <SummaryChip label="Despesas" value={expenses} color="#F87171" />
+          <SummaryChip label="Casal" value={coupleExpenses} color="#818CF8" />
+          <SummaryChip label="Neusa" value={neusaExpenses} color="#F9A8D4" />
+          <SummaryChip label="Global" value={globalExpenses} color="#FB923C" />
           <SummaryChip label="Saldo" value={balance} color={balance >= 0 ? '#34D399' : '#F87171'} />
         </div>
+        {neusaPending > 0 && (
+          <div className="rounded-2xl px-3 py-2 flex items-center justify-between gap-3"
+            style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.16)' }}>
+            <span className="text-xs font-medium" style={{ color: '#FBBF24' }}>Neusa a reembolsar neste mes</span>
+            <span className="text-xs font-bold font-mono-nums" style={{ color: '#FBBF24' }}>
+              R$ {neusaPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+        )}
 
         {/* Search + Filter toggle */}
         <div className="flex gap-2">
@@ -481,6 +540,15 @@ export default function TransactionsPage() {
               </div>
             )}
 
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Responsavel</p>
+              <div className="flex flex-wrap gap-2">
+                <FilterBtn active={filterResponsible === ''} onClick={() => setFilterResponsible('')}>Todos</FilterBtn>
+                <FilterBtn active={filterResponsible === 'casal'} onClick={() => setFilterResponsible('casal')}>Casal</FilterBtn>
+                <FilterBtn active={filterResponsible === 'sogra'} onClick={() => setFilterResponsible('sogra')}>Neusa</FilterBtn>
+              </div>
+            </div>
+
             {profiles.length > 1 && (
               <div>
                 <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Quem lançou</p>
@@ -532,6 +600,7 @@ export default function TransactionsPage() {
                 onDelete={() => setDeletingTx(tx)}
                 onEdit={() => handleEdit(tx)}
                 onPay={() => handlePay(tx)}
+                onReimburse={() => handleReimburse(tx)}
               />
             ))
           )}

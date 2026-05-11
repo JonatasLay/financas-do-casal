@@ -14,6 +14,9 @@ interface Props {
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
+const isCoupleExpense = (tx: Transaction) => (tx.responsible_party || 'casal') === 'casal'
+const isNeusaExpense = (tx: Transaction) => tx.responsible_party === 'sogra'
+
 function CardSkeleton() {
   return (
     <div className="p-4 rounded-2xl space-y-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -39,16 +42,26 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
 
   if (!loading && creditCards.length === 0) return null
 
-  const getSpent = (card: Bank) =>
+  const getCardTransactions = (card: Bank) =>
     transactions
       .filter(t => {
         if (t.bank_id !== card.id || t.type === 'receita' || t.status !== 'realizado') return false
         return isDateInMonth(getCreditCardPaymentDate(t.date, card.due_day), selectedMonth)
       })
+
+  const getSpent = (card: Bank, filter?: (tx: Transaction) => boolean) =>
+    getCardTransactions(card)
+      .filter(filter || (() => true))
       .reduce((s, t) => s + Number(t.amount), 0)
 
   const totalLimit = creditCards.reduce((s, c) => s + (Number(c.limit_amount) || 0), 0)
   const totalSpent = creditCards.reduce((s, c) => s + getSpent(c), 0)
+  const totalCoupleSpent = creditCards.reduce((s, c) => s + getSpent(c, isCoupleExpense), 0)
+  const totalNeusaSpent = creditCards.reduce((s, c) => s + getSpent(c, isNeusaExpense), 0)
+  const totalNeusaPending = creditCards.reduce(
+    (s, c) => s + getSpent(c, tx => isNeusaExpense(tx) && !tx.is_reimbursed),
+    0
+  )
   const usagePct   = totalLimit > 0 ? Math.min(100, (totalSpent / totalLimit) * 100) : 0
 
   const usageColor = usagePct >= 90 ? '#F87171' : usagePct >= 70 ? '#FBBF24' : '#818CF8'
@@ -71,6 +84,23 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
           </div>
         )}
       </div>
+
+      {totalSpent > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(129,140,248,0.08)', border: '1px solid rgba(129,140,248,0.16)' }}>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Casal</p>
+            <p className="text-xs font-bold font-mono-nums" style={{ color: '#C7D2FE' }}>{brl(totalCoupleSpent)}</p>
+          </div>
+          <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(244,114,182,0.08)', border: '1px solid rgba(244,114,182,0.16)' }}>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neusa</p>
+            <p className="text-xs font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(totalNeusaSpent)}</p>
+          </div>
+          <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.16)' }}>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>A receber</p>
+            <p className="text-xs font-bold font-mono-nums" style={{ color: totalNeusaPending > 0 ? '#FB923C' : '#94A3B8' }}>{brl(totalNeusaPending)}</p>
+          </div>
+        </div>
+      )}
 
       {/* Total usage bar */}
       {totalLimit > 0 && (
@@ -96,6 +126,9 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
           ? [1, 2].map(i => <CardSkeleton key={i} />)
           : creditCards.map(card => {
               const spent   = getSpent(card)
+              const coupleSpent = getSpent(card, isCoupleExpense)
+              const neusaSpent = getSpent(card, isNeusaExpense)
+              const neusaPending = getSpent(card, tx => isNeusaExpense(tx) && !tx.is_reimbursed)
               const limit   = Number(card.limit_amount) || 0
               const cardPct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0
               const color   = card.color || '#818CF8'
@@ -113,6 +146,7 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
                       )}
                     </div>
                     <div className="text-right flex-shrink-0">
+                      <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Fatura real</p>
                       <p className="text-sm font-bold font-mono-nums" style={{ color: cardUsageColor }}>{brl(spent)}</p>
                       {limit > 0 && (
                         <p className="text-[10px]" style={{ color: '#475569' }}>de {brl(limit)}</p>
@@ -131,6 +165,23 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
                         {limit > 0 && (
                           <p className="text-[10px]" style={{ color: '#334155' }}>Disponível: {brl(Math.max(0, limit - spent))}</p>
                         )}
+                      </div>
+                    </div>
+                  )}
+
+                  {spent > 0 && (
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <div className="rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                        <p className="text-[9px] uppercase tracking-wide" style={{ color: '#64748B' }}>Casal</p>
+                        <p className="text-[11px] font-bold font-mono-nums" style={{ color: '#C7D2FE' }}>{brl(coupleSpent)}</p>
+                      </div>
+                      <div className="rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                        <p className="text-[9px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neusa</p>
+                        <p className="text-[11px] font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(neusaSpent)}</p>
+                      </div>
+                      <div className="rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                        <p className="text-[9px] uppercase tracking-wide" style={{ color: '#64748B' }}>A receber</p>
+                        <p className="text-[11px] font-bold font-mono-nums" style={{ color: neusaPending > 0 ? '#FB923C' : '#64748B' }}>{brl(neusaPending)}</p>
                       </div>
                     </div>
                   )}

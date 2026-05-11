@@ -78,6 +78,14 @@ export function RecentTransactions({ transactions, loading, onRefresh }: RecentT
                       </span>
                     </>
                   )}
+                  {tx.responsible_party === 'sogra' && (
+                    <>
+                      <span> - </span>
+                      <span style={{ color: tx.is_reimbursed ? '#34D399' : '#FB923C' }}>
+                        {tx.is_reimbursed ? 'Neusa ok' : 'Neusa a receber'}
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
 

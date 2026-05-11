@@ -1,5 +1,6 @@
 export type TransactionType   = 'receita' | 'despesa' | 'fatura' | 'transferencia'
 export type TransactionStatus = 'realizado' | 'pendente' | 'agendado'
+export type ResponsibleParty  = 'casal' | 'sogra'
 export type BankType          = 'conta' | 'credito' | 'debito' | 'dinheiro' | 'investimento'
 export type CategoryType      = 'receita' | 'despesa' | 'ambos'
 export type SavingsType       = 'poupança' | 'cdb' | 'lci' | 'lca' | 'tesouro' | 'fundo' | 'outro'
@@ -30,6 +31,8 @@ export interface Transaction {
   description: string; amount: number; type: TransactionType
   category_id: string | null; bank_id: string | null; status: TransactionStatus
   notes: string | null; is_recurring: boolean; month: string; year: number; created_at: string
+  responsible_party?: ResponsibleParty
+  is_reimbursed?: boolean
   category?: Category; bank?: Bank; profile?: Profile
 }
 

@@ -260,16 +260,25 @@ export default function DashboardPage() {
     ...transactions.filter(tx => !isCreditTx(tx)),
     ...creditInvoiceDueThisMonth,
   ]
+  const coupleFinancialTransactions = financialTransactions.filter(tx => (tx.responsible_party || 'casal') === 'casal')
 
-  const income   = transactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const expenses = financialTransactions.filter(t => t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const pending  = transactions.filter(t => t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const income = transactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const coupleExpenses = financialTransactions
+    .filter(t => t.type !== 'receita' && t.status === 'realizado' && (t.responsible_party || 'casal') === 'casal')
+    .reduce((s, t) => s + Number(t.amount), 0)
+  const neusaPending = financialTransactions
+    .filter(t => t.type !== 'receita' && t.status === 'realizado' && t.responsible_party === 'sogra' && !t.is_reimbursed)
+    .reduce((s, t) => s + Number(t.amount), 0)
+  const expenses = coupleExpenses + neusaPending
+  const pending = transactions.filter(t => t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
   const balance  = income - expenses
 
   const byCategory = categories
     .map(cat => ({
       category: cat,
-      total: financialTransactions.filter(t => t.category_id === cat.id && t.type !== 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0),
+      total: coupleFinancialTransactions
+        .filter(t => t.category_id === cat.id && t.type !== 'receita' && t.status === 'realizado')
+        .reduce((s, t) => s + Number(t.amount), 0),
     }))
     .filter(x => x.total > 0)
     .sort((a, b) => b.total - a.total)
@@ -375,7 +384,7 @@ export default function DashboardPage() {
 
           {/* ── Row 8: Budgets ── */}
           <motion.div {...fadeUp(0.24)}>
-            <BudgetsMini budgets={budgets} transactions={financialTransactions} loading={loading} />
+            <BudgetsMini budgets={budgets} transactions={coupleFinancialTransactions} loading={loading} />
           </motion.div>
 
           {/* ── Row 9: Credit cards ── */}
