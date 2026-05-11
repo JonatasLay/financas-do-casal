@@ -12,7 +12,7 @@ import { CheckCircle2, HandCoins, Plus, Search, Trash2, Pencil, X, SlidersHorizo
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { getCreditCardPaymentDate } from '@/lib/finance-dates'
-import type { Transaction, Category, Bank, TransactionType, Profile, ResponsibleParty } from '@/types'
+import type { Transaction, Category, Bank, TransactionType, Profile, ResponsibleParty, PaymentMethod } from '@/types'
 
 // ─── Transaction row with swipe + edit/delete ────────────────────────────────
 
@@ -35,10 +35,20 @@ const STATUS_LABEL: Record<string, string> = {
   agendado:  'Agendado',
 }
 
+const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  credito: 'Credito',
+  debito: 'Debito',
+  boleto: 'Boleto',
+  pix: 'Pix',
+  dinheiro: 'Dinheiro',
+  transferencia: 'Transfer.',
+  outro: 'Outro',
+}
+
 function getInstallmentLabel(tx: Transaction) {
-  const match = `${tx.description} ${tx.notes || ''}`.match(/Parcela\s+(\d{1,2})\/(\d{1,2})/i)
+  const match = `${tx.description} ${tx.notes || ''}`.match(/(Parcela|Boleto)\s+(\d{1,2})\/(\d{1,2})/i)
   if (!match) return null
-  return `Parcela ${match[1].padStart(2, '0')}/${match[2].padStart(2, '0')}`
+  return `${match[1]} ${match[2].padStart(2, '0')}/${match[3].padStart(2, '0')}`
 }
 
 function TransactionRow({
@@ -168,6 +178,15 @@ function TransactionRow({
                 </div>
               )}
               <span className={STATUS_BADGE[tx.status]}>{statusLabel}</span>
+              {tx.payment_method && tx.payment_method !== 'outro' && (
+                <span className="badge" style={{
+                  background: tx.payment_method === 'boleto' ? 'rgba(251,191,36,0.12)' : 'rgba(129,140,248,0.1)',
+                  border: tx.payment_method === 'boleto' ? '1px solid rgba(251,191,36,0.24)' : '1px solid rgba(129,140,248,0.18)',
+                  color: tx.payment_method === 'boleto' ? '#FBBF24' : '#A5B4FC',
+                }}>
+                  {PAYMENT_METHOD_LABEL[tx.payment_method]}
+                </span>
+              )}
               {installmentLabel && (
                 <span className="badge" style={{ background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.25)', color: '#FB923C' }}>
                   {installmentLabel}

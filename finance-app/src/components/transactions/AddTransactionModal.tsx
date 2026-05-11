@@ -8,7 +8,7 @@ import { NumericFormat } from 'react-number-format'
 import { toast } from 'sonner'
 import { addMonths, format } from 'date-fns'
 import { getCreditCardPaymentDate } from '@/lib/finance-dates'
-import type { Category, Bank, Transaction, TransactionType, TransactionStatus, ResponsibleParty } from '@/types'
+import type { Category, Bank, Transaction, TransactionType, TransactionStatus, ResponsibleParty, PaymentMethod } from '@/types'
 
 interface Props {
   open: boolean
@@ -29,6 +29,25 @@ const STATUSES: { value: TransactionStatus; label: string; icon: string }[] = [
   { value: 'pendente',  label: 'Pendente',  icon: '⏳' },
   { value: 'agendado',  label: 'Agendado',  icon: '📅' },
 ]
+
+const PAYMENT_METHODS: { value: PaymentMethod; label: string; detail: string; color: string }[] = [
+  { value: 'credito',       label: 'Cartao credito', detail: 'Compra em fatura',      color: '#FB923C' },
+  { value: 'boleto',        label: 'Boleto',         detail: 'Vencimento agendado',  color: '#FBBF24' },
+  { value: 'pix',           label: 'Pix',            detail: 'Transferencia Pix',    color: '#22D3EE' },
+  { value: 'debito',        label: 'Debito',         detail: 'Sai na hora',          color: '#34D399' },
+  { value: 'dinheiro',      label: 'Dinheiro',       detail: 'Pagamento em especie', color: '#10B981' },
+  { value: 'transferencia', label: 'Transferencia',  detail: 'TED/DOC/conta',        color: '#818CF8' },
+  { value: 'outro',         label: 'Outro',          detail: 'Sem forma definida',   color: '#94A3B8' },
+]
+
+function inferPaymentMethod(bank?: Bank): PaymentMethod {
+  if (!bank) return 'outro'
+  if (bank.type === 'credito') return 'credito'
+  if (bank.type === 'debito') return 'debito'
+  if (bank.type === 'dinheiro') return 'dinheiro'
+  if (bank.name.toLowerCase().includes('pix')) return 'pix'
+  return 'outro'
+}
 
 export function AddTransactionModal({ open, onClose, onSuccess, editTransaction }: Props) {
   const supabase = createClient()
@@ -51,6 +70,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
   const [installments, setInstallments] = useState(1)
   const [responsibleParty, setResponsibleParty] = useState<ResponsibleParty>('casal')
   const [isReimbursed, setIsReimbursed] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('outro')
 
   useEffect(() => {
     if (!open) return
@@ -86,6 +106,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       setInstallments(1)
       setResponsibleParty(editTransaction.responsible_party || 'casal')
       setIsReimbursed(!!editTransaction.is_reimbursed)
+      setPaymentMethod(editTransaction.payment_method || inferPaymentMethod(editTransaction.bank))
     } else {
       reset()
     }
@@ -97,8 +118,23 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       : c.type === 'despesa' || c.type === 'ambos'
   )
   const selectedBank = banks.find(bank => bank.id === bankId)
-  const isCreditExpense = !!selectedBank && selectedBank.type === 'credito' && type !== 'receita'
+  const isCreditExpense = paymentMethod === 'credito' && !!selectedBank && selectedBank.type === 'credito' && type !== 'receita'
+  const isBoletoExpense = paymentMethod === 'boleto' && type !== 'receita'
   const firstInvoiceDate = isCreditExpense ? getCreditCardPaymentDate(date, selectedBank?.due_day) : null
+  const canGenerateMonthlyRows = (isCreditExpense || isBoletoExpense) && !isEdit
+  const amountLabel = isBoletoExpense && !isEdit ? 'Valor de cada boleto' : isCreditExpense && !isEdit ? 'Valor total' : 'Valor'
+
+  useEffect(() => {
+    if (!selectedBank || isEdit) return
+    const inferred = inferPaymentMethod(selectedBank)
+    if (inferred !== 'outro') setPaymentMethod(inferred)
+  }, [selectedBank?.id, isEdit])
+
+  useEffect(() => {
+    if (!open || isEdit) return
+    if (isBoletoExpense) setStatus(prev => prev === 'realizado' ? 'agendado' : prev)
+    if (!isCreditExpense && !isBoletoExpense) setInstallments(1)
+  }, [open, isEdit, isBoletoExpense, isCreditExpense])
 
   const reset = () => {
     setDate(format(new Date(), 'yyyy-MM-dd'))
@@ -113,6 +149,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
     setInstallments(1)
     setResponsibleParty('casal')
     setIsReimbursed(false)
+    setPaymentMethod('outro')
   }
 
   const handleClose = () => { if (!isEdit) reset(); onClose() }
@@ -125,8 +162,10 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
 
     setSaving(true)
     try {
-      const safeInstallments = isCreditExpense && !isEdit ? Math.max(1, Math.min(36, installments || 1)) : 1
-      const perInstallmentAmount = safeInstallments > 1
+      const maxInstallments = isBoletoExpense ? 60 : 36
+      const safeInstallments = canGenerateMonthlyRows ? Math.max(1, Math.min(maxInstallments, installments || 1)) : 1
+      const divideAmount = isCreditExpense && safeInstallments > 1
+      const perInstallmentAmount = divideAmount
         ? Number((amountFloat / safeInstallments).toFixed(2))
         : amountFloat
 
@@ -139,9 +178,10 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
         bank_id: bankId || null,
         status,
         notes: notes.trim() || null,
-        is_recurring: isRecurring,
+        is_recurring: isRecurring || (isBoletoExpense && safeInstallments > 1),
         responsible_party: responsibleParty,
         is_reimbursed: responsibleParty === 'sogra' ? isReimbursed : false,
+        payment_method: paymentMethod,
       }
 
       if (isEdit && editTransaction) {
@@ -151,16 +191,17 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       } else {
         const rows = Array.from({ length: safeInstallments }, (_, index) => {
           const installmentNumber = index + 1
-          const amount = safeInstallments > 1 && installmentNumber === safeInstallments
+          const amount = divideAmount && installmentNumber === safeInstallments
             ? Number((amountFloat - perInstallmentAmount * (safeInstallments - 1)).toFixed(2))
             : perInstallmentAmount
+          const installmentLabel = isBoletoExpense ? 'Boleto' : 'Parcela'
 
           return {
             ...payload,
             amount,
             date: format(addMonths(new Date(`${date}T12:00:00`), index), 'yyyy-MM-dd'),
             description: safeInstallments > 1
-              ? `${description.trim()} (Parcela ${String(installmentNumber).padStart(2, '0')}/${String(safeInstallments).padStart(2, '0')})`
+              ? `${description.trim()} (${installmentLabel} ${String(installmentNumber).padStart(2, '0')}/${String(safeInstallments).padStart(2, '0')})`
               : description.trim(),
             household_id: profile.household_id,
             created_by: profile.id,
@@ -237,7 +278,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
 
           {/* Valor */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: labelC }}>Valor</p>
+            <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: labelC }}>{amountLabel}</p>
             <NumericFormat
               value={amountFloat || ''}
               onValueChange={v => setAmountFloat(v.floatValue || 0)}
@@ -292,6 +333,32 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
           </div>
 
           {/* Banco / Cartão */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: labelC }}>Forma de pagamento</p>
+            <div className="grid grid-cols-2 gap-2">
+              {PAYMENT_METHODS.map(method => {
+                const active = paymentMethod === method.value
+                return (
+                  <button
+                    key={method.value}
+                    type="button"
+                    onClick={() => {
+                      setPaymentMethod(method.value)
+                      if (method.value === 'boleto' && !isEdit && type !== 'receita') setStatus('agendado')
+                    }}
+                    className="rounded-xl border-2 px-3 py-2.5 text-left transition-all"
+                    style={active
+                      ? { background: `${method.color}18`, borderColor: method.color, color: method.color }
+                      : { background: inputBg, borderColor: 'rgba(255,255,255,0.07)', color: '#94A3B8' }}
+                  >
+                    <p className="text-sm font-semibold">{method.label}</p>
+                    <p className="text-[10px] mt-0.5 opacity-70">{method.detail}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           {banks.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: labelC }}>Banco / Cartão</p>
@@ -352,6 +419,36 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
               {installments > 1 && (
                 <p className="text-xs font-mono-nums" style={{ color: '#F1F5F9' }}>
                   {installments}x de {(amountFloat / installments).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              )}
+            </div>
+          )}
+
+          {isBoletoExpense && !isEdit && (
+            <div className="rounded-xl p-3.5 space-y-3"
+              style={{ background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.18)' }}>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#FBBF24' }}>
+                  Boleto mensal
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>
+                  Use a data como vencimento inicial. O status ideal e agendado ate pagar.
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Quantidade</p>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={installments}
+                  onChange={e => setInstallments(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
+                  className="input w-20 text-center"
+                />
+              </div>
+              {installments > 1 && (
+                <p className="text-xs font-mono-nums" style={{ color: '#F1F5F9' }}>
+                  {installments} boletos mensais de {amountFloat.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </p>
               )}
             </div>

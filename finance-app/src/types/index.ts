@@ -1,6 +1,7 @@
 export type TransactionType   = 'receita' | 'despesa' | 'fatura' | 'transferencia'
 export type TransactionStatus = 'realizado' | 'pendente' | 'agendado'
 export type ResponsibleParty  = 'casal' | 'sogra'
+export type PaymentMethod     = 'credito' | 'debito' | 'boleto' | 'pix' | 'dinheiro' | 'transferencia' | 'outro'
 export type BankType          = 'conta' | 'credito' | 'debito' | 'dinheiro' | 'investimento'
 export type CategoryType      = 'receita' | 'despesa' | 'ambos'
 export type SavingsType       = 'poupança' | 'cdb' | 'lci' | 'lca' | 'tesouro' | 'fundo' | 'outro'
@@ -33,6 +34,7 @@ export interface Transaction {
   notes: string | null; is_recurring: boolean; month: string; year: number; created_at: string
   responsible_party?: ResponsibleParty
   is_reimbursed?: boolean
+  payment_method?: PaymentMethod
   category?: Category; bank?: Bank; profile?: Profile
 }
 
@@ -109,7 +111,7 @@ export interface DashboardData {
 
 export interface TransactionFormData {
   date: string; description: string; amount: number; type: TransactionType
-  category_id: string; bank_id: string; status: TransactionStatus; notes?: string; is_recurring: boolean
+  category_id: string; bank_id: string; status: TransactionStatus; notes?: string; is_recurring: boolean; payment_method?: PaymentMethod
 }
 
 export interface GoalFormData {

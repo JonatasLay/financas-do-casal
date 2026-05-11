@@ -86,6 +86,12 @@ export function RecentTransactions({ transactions, loading, onRefresh }: RecentT
                       </span>
                     </>
                   )}
+                  {tx.payment_method === 'boleto' && (
+                    <>
+                      <span> - </span>
+                      <span style={{ color: '#FBBF24' }}>Boleto</span>
+                    </>
+                  )}
                 </p>
               </div>
 
