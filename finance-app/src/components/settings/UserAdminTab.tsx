@@ -175,9 +175,9 @@ export function UserAdminTab({ profile }: { profile: Profile | null }) {
             {loading ? <div className="skeleton h-16 rounded-xl" /> : members.map(member => (
               <div key={member.id} className="flex items-center gap-3 p-3 rounded-xl"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 overflow-hidden"
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0 overflow-hidden ring-1 ring-white/10"
                   style={{ backgroundColor: member.avatar_color }}>
-                  {member.avatar_url ? <img src={member.avatar_url} alt={member.name} className="w-full h-full object-cover" /> : member.avatar_emoji}
+                  {member.avatar_url ? <img src={member.avatar_url} alt={member.name} className="block w-full h-full rounded-full object-cover" /> : member.avatar_emoji}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate" style={textStyle}>{member.name}</p>

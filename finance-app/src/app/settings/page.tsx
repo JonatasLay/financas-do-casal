@@ -331,8 +331,8 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
       {/* Avatar preview */}
       <div className="flex items-center gap-4 p-4 rounded-2xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
         <div className="relative flex-shrink-0">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl overflow-hidden" style={{ backgroundColor: color }}>
-            {avatarUrl ? <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" /> : emoji}
+          <div className="w-16 h-16 rounded-full flex items-center justify-center text-3xl overflow-hidden ring-2 ring-white/10" style={{ backgroundColor: color }}>
+            {avatarUrl ? <img src={avatarUrl} alt="avatar" className="block w-full h-full rounded-full object-cover" /> : emoji}
           </div>
           <button onClick={() => fileRef.current?.click()} disabled={uploading}
             className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center"
@@ -425,10 +425,10 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
             {members.map(m => (
               <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 overflow-hidden"
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0 overflow-hidden ring-1 ring-white/10"
                   style={{ backgroundColor: m.avatar_color }}>
                   {m.avatar_url
-                    ? <img src={m.avatar_url} alt={m.name} className="w-full h-full object-cover" />
+                    ? <img src={m.avatar_url} alt={m.name} className="block w-full h-full rounded-full object-cover" />
                     : m.avatar_emoji}
                 </div>
                 <div className="flex-1 min-w-0">
