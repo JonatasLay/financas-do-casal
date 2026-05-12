@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ChevronDown, ChevronUp, Plus, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Pencil, Trash2, Sparkles } from 'lucide-react'
 import { NumericFormat } from 'react-number-format'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -154,6 +154,8 @@ export function GoalCard({ goal, onRefresh, onEdit }: GoalCardProps) {
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [aiTip, setAiTip] = useState<string | null>(null)
+  const [loadingTip, setLoadingTip] = useState(false)
   const prevPct = useRef(0)
 
   const pct = Math.min(
@@ -170,6 +172,16 @@ export function GoalCard({ goal, onRefresh, onEdit }: GoalCardProps) {
     }
     prevPct.current = pct
   }, [pct])
+
+  useEffect(() => {
+    if (isCompleted) return
+    setLoadingTip(true)
+    fetch(`/api/ai/goal-tip?goalId=${goal.id}`)
+      .then(r => r.json())
+      .then(d => setAiTip(d.tip || null))
+      .catch(() => setAiTip(null))
+      .finally(() => setLoadingTip(false))
+  }, [goal.id, goal.current_amount, goal.monthly_contribution, goal.target_amount, goal.deadline, isCompleted])
 
   const loadHistory = async () => {
     if (showHistory) { setShowHistory(false); return }
@@ -284,6 +296,23 @@ export function GoalCard({ goal, onRefresh, onEdit }: GoalCardProps) {
             <p className="text-xs mb-4" style={{ color: '#475569' }}>
               Contribuição mensal: {fmt(goal.monthly_contribution)}
             </p>
+          )}
+
+          {!isCompleted && (aiTip || loadingTip) && (
+            <div className="rounded-xl p-3 mb-3 flex gap-2.5"
+              style={{ background: 'rgba(129,140,248,0.08)', border: '1px solid rgba(129,140,248,0.18)' }}>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: 'linear-gradient(135deg, #818CF8, #F472B6)' }}>
+                <Sparkles className="w-3.5 h-3.5 text-white" />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold mb-1" style={{ color: '#818CF8' }}>Fina na meta</p>
+                {loadingTip
+                  ? <div className="skeleton h-4 w-44 rounded" />
+                  : <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: '#94A3B8' }}>{aiTip}</p>
+                }
+              </div>
+            </div>
           )}
 
           {/* Contribute button */}

@@ -106,6 +106,50 @@ Formato: 3 a 5 bullets curtos, com valores reais. Nao seja longa.`,
   return (response.content[0] as { type: string; text: string }).text
 }
 
+export async function generateSavingsInsight(context: AIContext): Promise<string> {
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 380,
+    system: buildSystemPrompt(context),
+    messages: [{
+      role: 'user',
+      content: `Analise somente a tela de Poupanca/Reserva do casal.
+Use o contexto geral apenas para dizer se faz sentido aumentar, pausar ou manter aportes.
+Considere: total guardado, tipo dos produtos, rendimento cadastrado, reserva de emergencia ideal, saldo projetado do mes e faturas.
+Formato: 3 bullets curtos com diagnostico, risco e proxima acao. Nao fale de meses aleatorios se nao for relevante para a reserva.`,
+    }],
+  })
+  return (response.content[0] as { type: string; text: string }).text
+}
+
+export async function generateGoalInsight(context: AIContext, goal: {
+  name: string
+  target: number
+  current: number
+  monthly: number
+  deadline?: string | null
+}): Promise<string> {
+  const remaining = Math.max(0, goal.target - goal.current)
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 420,
+    system: buildSystemPrompt(context),
+    messages: [{
+      role: 'user',
+      content: `Analise esta meta especifica:
+- Nome: ${goal.name}
+- Valor alvo: ${brl(goal.target)}
+- Valor atual ja guardado: ${brl(goal.current)}
+- Falta: ${brl(remaining)}
+- Contribuicao mensal planejada: ${brl(goal.monthly || 0)}
+- Prazo: ${goal.deadline || 'sem prazo definido'}
+
+Com base na saude financeira geral, diga se a contribuicao mensal e realista, em quanto tempo chega, se o prazo esta em risco e qual ajuste voce recomenda. Formato: 3 a 5 bullets curtos, direto e pratico.`,
+    }],
+  })
+  return (response.content[0] as { type: string; text: string }).text
+}
+
 export async function analyzePurchase(item: string, price: number, context: AIContext): Promise<string> {
   const response = await anthropic.messages.create({
     model: MODEL_CHAT,

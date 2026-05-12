@@ -25,6 +25,7 @@ export function AddGoalModal({ open, onClose, onSuccess, householdId, editGoal }
 
   const [name, setName]               = useState('')
   const [targetFloat, setTargetFloat] = useState(0)
+  const [currentFloat, setCurrentFloat] = useState(0)
   const [monthlyFloat, setMonthlyFloat] = useState(0)
   const [deadline, setDeadline]       = useState('')
   const [icon, setIcon]               = useState('🎯')
@@ -35,13 +36,14 @@ export function AddGoalModal({ open, onClose, onSuccess, householdId, editGoal }
     if (editGoal) {
       setName(editGoal.name)
       setTargetFloat(Number(editGoal.target_amount))
+      setCurrentFloat(Number(editGoal.current_amount))
       setMonthlyFloat(Number(editGoal.monthly_contribution))
       setDeadline(editGoal.deadline || '')
       setIcon(editGoal.icon)
       setColor(editGoal.color)
       setDescription(editGoal.description || '')
     } else if (open) {
-      setName(''); setTargetFloat(0); setMonthlyFloat(0)
+      setName(''); setTargetFloat(0); setCurrentFloat(0); setMonthlyFloat(0)
       setDeadline(''); setIcon('🎯'); setColor('#6366F1'); setDescription('')
     }
   }, [editGoal, open])
@@ -60,6 +62,7 @@ export function AddGoalModal({ open, onClose, onSuccess, householdId, editGoal }
         name: name.trim(),
         description: description.trim() || null,
         target_amount: targetFloat,
+        current_amount: currentFloat,
         monthly_contribution: monthlyFloat,
         icon,
         color,
@@ -74,7 +77,6 @@ export function AddGoalModal({ open, onClose, onSuccess, householdId, editGoal }
         const { error } = await supabase.from('goals').insert({
           ...payload,
           household_id: householdId,
-          current_amount: 0,
           is_completed: false,
         })
         if (error) throw error
@@ -181,6 +183,23 @@ export function AddGoalModal({ open, onClose, onSuccess, householdId, editGoal }
             />
           </div>
 
+          {/* Valor atual */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: labelC }}>
+              Valor atual ja guardado
+            </p>
+            <NumericFormat
+              value={currentFloat || ''}
+              onValueChange={v => setCurrentFloat(v.floatValue || 0)}
+              thousandSeparator="." decimalSeparator="," decimalScale={2} fixedDecimalScale
+              prefix="R$ " placeholder="R$ 0,00" inputMode="decimal"
+              className="input"
+            />
+            <p className="text-xs mt-1.5 ml-1" style={{ color: '#475569' }}>
+              Use quando a meta ja comeca com algum dinheiro separado.
+            </p>
+          </div>
+
           {/* Contribuição mensal */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: labelC }}>
@@ -195,7 +214,7 @@ export function AddGoalModal({ open, onClose, onSuccess, householdId, editGoal }
             />
             {monthlyFloat > 0 && targetFloat > 0 && (
               <p className="text-xs mt-1.5 ml-1" style={{ color: '#475569' }}>
-                ≈ {Math.ceil(targetFloat / monthlyFloat)} meses para atingir
+                ≈ {Math.ceil(Math.max(0, targetFloat - currentFloat) / monthlyFloat)} meses para atingir
               </p>
             )}
           </div>

@@ -203,8 +203,8 @@ export default function SavingsPage() {
   useEffect(() => {
     if (savings.length === 0) return
     setLoadingTip(true)
-    fetch('/api/ai/tip').then(r => r.json()).then(d => setAiTip(d.tip)).catch(() => {}).finally(() => setLoadingTip(false))
-  }, [savings.length])
+    fetch('/api/ai/savings-tip').then(r => r.json()).then(d => setAiTip(d.tip)).catch(() => {}).finally(() => setLoadingTip(false))
+  }, [savings.map(s => `${s.id}:${s.current_amount}:${s.interest_rate}:${s.type}`).join('|')])
 
   const handleDelete = async () => {
     if (!deletingId) return
