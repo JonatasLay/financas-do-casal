@@ -15,10 +15,12 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { messages, mode, purchaseItem, purchasePrice, investmentQuestion } = await req.json()
+    const allMessages = (messages as AIMessage[] | undefined) || []
     const context = await buildFinancialContext(supabase, user.id)
-    const lastMessage = (messages as AIMessage[] | undefined)?.filter(m => m.role === 'user').at(-1)?.content || ''
+    const lastMessage = allMessages.filter(m => m.role === 'user').at(-1)?.content || ''
     if (!mode || mode === 'chat') {
-      const action = await tryHandleTransactionAction(supabase, user.id, lastMessage)
+      const actionText = resolveActionTextFromConversation(allMessages, lastMessage)
+      const action = await tryHandleTransactionAction(supabase, user.id, actionText)
       if (action) return NextResponse.json({ response: action })
     }
 
@@ -37,9 +39,53 @@ export async function POST(req: NextRequest) {
 }
 
 function parseMoney(text: string) {
-  const match = text.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:[,.]\d{1,2})?|\d+)/i)
+  const match = text.match(/[-+]?\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:[,.]\d{1,2})?|\d+)/i)
   if (!match) return 0
   return Number(match[1].replace(/\./g, '').replace(',', '.'))
+}
+
+function parseBRDate(text: string) {
+  const match = text.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/)
+  if (!match) return null
+  return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`
+}
+
+function resolveActionTextFromConversation(messages: AIMessage[], lastMessage: string) {
+  if (!/^\s*(sim|pode|confirmo|confirmado|ok|isso|isso mesmo|claro|manda|lanca|lança)\s*[!.]*\s*$/i.test(lastMessage)) {
+    return lastMessage
+  }
+
+  const lastIndex = messages.map(m => m.content).lastIndexOf(lastMessage)
+  const previousAssistant = messages.slice(0, lastIndex).reverse().find(m => m.role === 'assistant')?.content || ''
+  if (/descri[cç][aã]o\s*:|valor\s*:|data\s*:/i.test(previousAssistant)) {
+    return `lance\n${previousAssistant}`
+  }
+
+  const previousUser = messages.slice(0, lastIndex).reverse().find(m => m.role === 'user')?.content || ''
+  return previousUser || lastMessage
+}
+
+function parseStructuredTransaction(raw: string) {
+  const field = (label: string) => {
+    const match = raw.match(new RegExp(`${label}\\s*:\\s*([^\\n]+)`, 'i'))
+    return match?.[1]?.replace(/\*\*/g, '').trim() || null
+  }
+
+  const description = field('descri[cç][aã]o')
+  const valueText = field('valor')
+  const dateText = field('data')
+  const bank = field('conta|banco|cart[aã]o')
+  const paymentMethodText = field('forma|pagamento')
+  const category = field('categoria')
+  const amount = valueText ? Math.abs(parseMoney(valueText)) : 0
+  const type = valueText?.includes('+') || /\b(receita|recebi|ganhei)\b/i.test(raw)
+    ? 'receita'
+    : /\b(despesa|gastei|compra|comprei)\b/i.test(raw) || valueText?.includes('-')
+      ? 'despesa'
+      : null
+  const date = dateText ? parseBRDate(dateText) : parseBRDate(raw)
+
+  return { description, amount, date, bank, paymentMethodText, category, type }
 }
 
 async function tryHandleTransactionAction(supabase: any, userId: string, raw: string) {
@@ -49,7 +95,8 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
   if (wantsDelete) return tryDeleteTransactionFromMessage(supabase, userId, raw)
   if (!wantsLaunch) return null
 
-  const amount = parseMoney(raw)
+  const structured = parseStructuredTransaction(raw)
+  const amount = structured.amount || parseMoney(raw)
   if (!amount || amount <= 0) {
     return 'Consigo lançar sim, mas preciso do valor. Ex: "Lance mercado R$ 200 no cartão Nubank".'
   }
@@ -64,10 +111,12 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
   const banks = banksRes.data || []
   const categories = catsRes.data || []
   const type = /\b(recebi|receita|ganhei|sal[aá]rio|pagamento|trabalho)\b/.test(text) ? 'receita' : 'despesa'
-  const bank = banks.find((b: any) => text.includes(String(b.name).toLowerCase()))
+  const bankSearchText = `${text} ${structured.bank || ''}`.toLowerCase()
+  const categorySearchText = `${text} ${structured.category || ''}`.toLowerCase()
+  const bank = banks.find((b: any) => bankSearchText.includes(String(b.name).toLowerCase()))
     || banks.find((b: any) => text.includes('cartao') || text.includes('cartão') ? b.type === 'credito' : false)
     || null
-  const category = categories.find((c: any) => c.type !== (type === 'receita' ? 'despesa' : 'receita') && text.includes(String(c.name).toLowerCase()))
+  const category = categories.find((c: any) => c.type !== (type === 'receita' ? 'despesa' : 'receita') && categorySearchText.includes(String(c.name).toLowerCase()))
     || categories.find((c: any) => c.type !== (type === 'receita' ? 'despesa' : 'receita'))
     || null
 
@@ -78,24 +127,25 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
     .replace(bank?.name || '', '')
     .trim()
   const description = cleaned.length >= 3 ? cleaned : type === 'receita' ? 'Receita lançada pela Fina' : 'Despesa lançada pela Fina'
+  const paymentText = `${text} ${structured.paymentMethodText || ''}`.toLowerCase()
   const paymentMethod = bank?.type === 'credito' ? 'credito'
-    : text.includes('pix') ? 'pix'
-    : text.includes('boleto') ? 'boleto'
+    : paymentText.includes('pix') ? 'pix'
+    : paymentText.includes('boleto') ? 'boleto'
     : bank?.type === 'debito' ? 'debito'
     : bank?.type === 'dinheiro' ? 'dinheiro'
     : 'outro'
 
-  const date = text.includes('ontem')
+  const date = structured.date || (text.includes('ontem')
     ? format(subDays(new Date(), 1), 'yyyy-MM-dd')
-    : format(new Date(), 'yyyy-MM-dd')
+    : format(new Date(), 'yyyy-MM-dd'))
 
   const { error } = await supabase.from('transactions').insert({
     household_id: profile.household_id,
     created_by: profile.id,
     date,
-    description,
+    description: structured.description || description,
     amount,
-    type,
+    type: structured.type || type,
     category_id: category?.id || null,
     bank_id: bank?.id || null,
     status: 'realizado',
