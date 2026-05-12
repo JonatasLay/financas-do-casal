@@ -158,6 +158,68 @@ CREATE TABLE budgets (
 );
 
 -- ============================================================
+-- SAVINGS / POUPANCA
+-- ============================================================
+CREATE TABLE savings (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  institution TEXT,
+  type TEXT NOT NULL DEFAULT 'outro' CHECK (type IN ('poupança', 'cdb', 'lci', 'lca', 'tesouro', 'fundo', 'outro')),
+  current_amount DECIMAL(12,2) NOT NULL DEFAULT 0 CHECK (current_amount >= 0),
+  target_amount DECIMAL(12,2) CHECK (target_amount IS NULL OR target_amount >= 0),
+  interest_rate DECIMAL(8,4) CHECK (interest_rate IS NULL OR interest_rate >= 0),
+  icon TEXT DEFAULT '💰',
+  color TEXT DEFAULT '#22D3EE',
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE savings_history (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  savings_id UUID REFERENCES savings(id) ON DELETE CASCADE NOT NULL,
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE NOT NULL,
+  amount DECIMAL(12,2) NOT NULL CHECK (amount <> 0),
+  date DATE DEFAULT CURRENT_DATE,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- INVESTMENTS
+-- ============================================================
+CREATE TABLE investments (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  ticker TEXT,
+  type TEXT NOT NULL DEFAULT 'outro' CHECK (type IN ('acao', 'fii', 'etf', 'cripto', 'renda_fixa', 'fundo', 'outro')),
+  quantity DECIMAL(18,8) NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+  avg_price DECIMAL(12,2) NOT NULL DEFAULT 0 CHECK (avg_price >= 0),
+  current_price DECIMAL(12,2) NOT NULL DEFAULT 0 CHECK (current_price >= 0),
+  total_invested DECIMAL(12,2) NOT NULL DEFAULT 0 CHECK (total_invested >= 0),
+  icon TEXT DEFAULT '📈',
+  color TEXT DEFAULT '#FBBF24',
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE investment_transactions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  investment_id UUID REFERENCES investments(id) ON DELETE CASCADE NOT NULL,
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('compra', 'venda', 'dividendo')),
+  quantity DECIMAL(18,8) CHECK (quantity IS NULL OR quantity >= 0),
+  price DECIMAL(12,2) CHECK (price IS NULL OR price >= 0),
+  amount DECIMAL(12,2) NOT NULL CHECK (amount > 0),
+  date DATE DEFAULT CURRENT_DATE,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
 -- AI CONVERSATIONS (histórico de chat)
 -- ============================================================
 CREATE TABLE ai_conversations (
@@ -183,23 +245,27 @@ ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE goal_contributions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE budgets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE savings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE savings_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE investments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE investment_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_conversations ENABLE ROW LEVEL SECURITY;
 
 -- Helper function: retorna o household_id do usuário logado
 CREATE OR REPLACE FUNCTION auth_household_id()
 RETURNS UUID AS $$
-  SELECT household_id FROM profiles WHERE id = auth.uid()
-$$ LANGUAGE SQL SECURITY DEFINER;
+  SELECT household_id FROM public.profiles WHERE id = auth.uid()
+$$ LANGUAGE SQL SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION auth_is_household_admin()
 RETURNS BOOLEAN AS $$
   SELECT EXISTS (
-    SELECT 1 FROM profiles
+    SELECT 1 FROM public.profiles
     WHERE id = auth.uid()
       AND household_id IS NOT NULL
       AND role = 'admin'
   )
-$$ LANGUAGE SQL SECURITY DEFINER;
+$$ LANGUAGE SQL SECURITY DEFINER SET search_path = public;
 
 -- POLICIES: cada tabela só acessível pelo próprio household
 CREATE POLICY "household_access" ON households
@@ -237,6 +303,22 @@ CREATE POLICY "household_access" ON goal_contributions
 CREATE POLICY "household_access" ON budgets
   FOR ALL USING (household_id = auth_household_id());
 
+CREATE POLICY "household_access" ON savings
+  FOR ALL USING (household_id = auth_household_id())
+  WITH CHECK (household_id = auth_household_id());
+
+CREATE POLICY "household_access" ON savings_history
+  FOR ALL USING (household_id = auth_household_id())
+  WITH CHECK (household_id = auth_household_id());
+
+CREATE POLICY "household_access" ON investments
+  FOR ALL USING (household_id = auth_household_id())
+  WITH CHECK (household_id = auth_household_id());
+
+CREATE POLICY "household_access" ON investment_transactions
+  FOR ALL USING (household_id = auth_household_id())
+  WITH CHECK (household_id = auth_household_id());
+
 CREATE POLICY "household_access" ON ai_conversations
   FOR ALL USING (household_id = auth_household_id());
 
@@ -250,16 +332,18 @@ DECLARE
   new_household_id UUID;
   new_role TEXT := 'member';
 BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('financas_do_casal_handle_new_user'));
+
   SELECT * INTO invite
-  FROM household_invites
+  FROM public.household_invites
   WHERE lower(email) = lower(NEW.email)
     AND status = 'pending'
   ORDER BY created_at ASC
   LIMIT 1;
 
   IF invite.id IS NULL THEN
-    IF (SELECT COUNT(*) FROM profiles) = 0 THEN
-      INSERT INTO households (name) VALUES ('Nossa Família') RETURNING id INTO new_household_id;
+    IF (SELECT COUNT(*) FROM public.profiles) = 0 THEN
+      INSERT INTO public.households (name) VALUES ('Nossa Família') RETURNING id INTO new_household_id;
       new_role := 'admin';
     ELSE
       RAISE EXCEPTION 'Cadastro permitido apenas por convite.';
@@ -269,29 +353,40 @@ BEGIN
     new_role := invite.role;
   END IF;
 
-  INSERT INTO profiles (id, household_id, email, name, role, avatar_color)
+  INSERT INTO public.profiles (id, household_id, email, name, role, avatar_color)
   VALUES (
     NEW.id,
     new_household_id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
     new_role,
-    CASE WHEN (SELECT COUNT(*) FROM profiles) % 2 = 0 THEN '#6366F1' ELSE '#EC4899' END
+    CASE WHEN (SELECT COUNT(*) FROM public.profiles) % 2 = 0 THEN '#6366F1' ELSE '#EC4899' END
   );
 
   IF invite.id IS NOT NULL THEN
-    UPDATE household_invites
+    UPDATE public.household_invites
     SET status = 'accepted', accepted_by = NEW.id, accepted_at = NOW()
     WHERE id = invite.id;
   END IF;
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION protect_profile_admin_fields()
 RETURNS TRIGGER AS $$
 BEGIN
+  IF OLD.role = 'admin'
+    AND NEW.role IS DISTINCT FROM 'admin'
+    AND NOT EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE household_id = OLD.household_id
+        AND role = 'admin'
+        AND id <> OLD.id
+    ) THEN
+    RAISE EXCEPTION 'Mantenha pelo menos um administrador no household.';
+  END IF;
+
   IF NEW.role IS DISTINCT FROM OLD.role
     OR NEW.household_id IS DISTINCT FROM OLD.household_id
     OR NEW.email IS DISTINCT FROM OLD.email THEN
@@ -301,30 +396,53 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION admin_attach_existing_user(target_email TEXT, target_role TEXT DEFAULT 'member')
 RETURNS BOOLEAN AS $$
 DECLARE
   hid UUID;
+  pending_invite_id UUID;
 BEGIN
   IF NOT auth_is_household_admin() THEN
     RAISE EXCEPTION 'Apenas administradores podem vincular usuários.';
   END IF;
 
-  SELECT household_id INTO hid FROM profiles WHERE id = auth.uid();
+  SELECT household_id INTO hid FROM public.profiles WHERE id = auth.uid();
   IF hid IS NULL THEN
     RAISE EXCEPTION 'Household do admin não encontrado.';
   END IF;
 
-  UPDATE profiles
+  SELECT id INTO pending_invite_id
+  FROM public.household_invites
+  WHERE household_id = hid
+    AND lower(email) = lower(target_email)
+    AND status = 'pending'
+  LIMIT 1;
+
+  IF pending_invite_id IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  UPDATE public.profiles
   SET household_id = hid,
       role = CASE WHEN target_role = 'admin' THEN 'admin' ELSE 'member' END
-  WHERE lower(email) = lower(target_email);
+  WHERE lower(email) = lower(target_email)
+    AND (household_id IS NULL OR household_id = hid);
 
-  RETURN FOUND;
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  UPDATE public.household_invites
+  SET status = 'accepted',
+      accepted_by = (SELECT id FROM public.profiles WHERE lower(email) = lower(target_email) LIMIT 1),
+      accepted_at = NOW()
+  WHERE id = pending_invite_id;
+
+  RETURN TRUE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -341,6 +459,8 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON transactions FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON goals FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_savings_updated_at BEFORE UPDATE ON savings FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_investments_updated_at BEFORE UPDATE ON investments FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER protect_profile_admin_fields BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION protect_profile_admin_fields();
 
 -- ============================================================
@@ -353,6 +473,10 @@ CREATE INDEX idx_transactions_category ON transactions(category_id);
 CREATE INDEX idx_transactions_responsible_party ON transactions(household_id, responsible_party, is_reimbursed);
 CREATE INDEX idx_transactions_payment_method ON transactions(household_id, payment_method, status, date);
 CREATE INDEX idx_transactions_recurring_group ON transactions(household_id, recurring_group_id, date);
+CREATE INDEX idx_savings_household ON savings(household_id);
+CREATE INDEX idx_savings_history_household ON savings_history(household_id, savings_id, date DESC);
+CREATE INDEX idx_investments_household ON investments(household_id);
+CREATE INDEX idx_investment_transactions_household ON investment_transactions(household_id, investment_id, date DESC);
 
 CREATE OR REPLACE FUNCTION transaction_cash_delta(
   p_type TEXT,

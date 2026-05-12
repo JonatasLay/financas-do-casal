@@ -51,19 +51,6 @@ export function UserAdminTab({ profile }: { profile: Profile | null }) {
     if (!email.trim()) return void toast.error('Informe o email do convite')
     const normalizedEmail = email.trim().toLowerCase()
     setSaving(true)
-    const attach = await supabase.rpc('admin_attach_existing_user', {
-      target_email: normalizedEmail,
-      target_role: role,
-    })
-    if (!attach.error && attach.data === true) {
-      setSaving(false)
-      toast.success('Usuario existente vinculado ao mesmo painel.')
-      setEmail('')
-      setRole('member')
-      load()
-      return
-    }
-
     const { error } = await supabase.from('household_invites').upsert({
       household_id: profile.household_id,
       email: normalizedEmail,
@@ -71,9 +58,21 @@ export function UserAdminTab({ profile }: { profile: Profile | null }) {
       status: 'pending',
       invited_by: profile.id,
     }, { onConflict: 'household_id,email' })
+    if (error) {
+      setSaving(false)
+      return void toast.error(error.message || 'Erro ao criar convite')
+    }
+
+    const attach = await supabase.rpc('admin_attach_existing_user', {
+      target_email: normalizedEmail,
+      target_role: role,
+    })
     setSaving(false)
-    if (error) return void toast.error(error.message || 'Erro ao criar convite')
-    toast.success('Convite criado. A pessoa ja pode criar conta com esse email.')
+    if (!attach.error && attach.data === true) {
+      toast.success('Usuario existente vinculado ao mesmo painel.')
+    } else {
+      toast.success('Convite criado. A pessoa ja pode criar conta com esse email.')
+    }
     setEmail('')
     setRole('member')
     load()

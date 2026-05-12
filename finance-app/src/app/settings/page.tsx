@@ -334,8 +334,8 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
     setUploading(true)
     try {
       const ext  = file.name.split('.').pop() || 'jpg'
-      const path = `${profile.id}.${ext}`
-      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      const path = `${profile.id}/avatar.${ext}`
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type })
       if (upErr) throw upErr
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
       const url = publicUrl + '?t=' + Date.now()
