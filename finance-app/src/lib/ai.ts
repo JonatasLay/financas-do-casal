@@ -90,9 +90,18 @@ export async function chatWithFina(messages: AIMessage[], context: AIContext) {
 export async function generateDailyTip(context: AIContext): Promise<string> {
   const response = await anthropic.messages.create({
     model: MODEL,
-    max_tokens: 220,
+    max_tokens: 360,
     system: buildSystemPrompt(context),
-    messages: [{ role: 'user', content: 'Gere UMA dica financeira rapida e especifica para hoje, baseada na situacao real do casal. Maximo 2 frases. Seja direta, util e, se necessario, provocativa.' }],
+    messages: [{
+      role: 'user',
+      content: `Gere a Dica da Fina para o dashboard do mes selecionado.
+Prioridade de raciocinio:
+1. Comece pelo saldo projetado do mes, nao pelo saldo atual em conta.
+2. Considere receitas previstas/agendadas, despesas diretas realizadas/agendadas, faturas de cartao, saldo em contas, metas, poupanca e investimentos.
+3. Se o saldo em conta estiver apertado, explique que e uma tensao de caixa atual, mas diferencie do resultado previsto do mes.
+4. Traga uma orientacao pratica para hoje e uma provocacao curta se houver risco de gasto impulsivo.
+Formato: 3 a 5 bullets curtos, com valores reais. Nao seja longa.`,
+    }],
   })
   return (response.content[0] as { type: string; text: string }).text
 }

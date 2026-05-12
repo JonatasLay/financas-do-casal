@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const start = format(startOfMonth(selectedDate), 'yyyy-MM-dd')
     const end = format(endOfMonth(selectedDate), 'yyyy-MM-dd')
 
-    const [txRes, creditTxRes, banksRes] = await Promise.all([
+    const [txRes, creditTxRes, banksRes, goalsRes, savingsRes, investRes] = await Promise.all([
       supabase
       .from('transactions')
       .select('*, category:categories(name, icon), bank:banks(*)')
@@ -44,6 +44,9 @@ export async function GET(req: NextRequest) {
         .gte('date', format(startOfMonth(new Date(selectedYear, selectedMonth - 3, 1)), 'yyyy-MM-dd'))
         .lte('date', format(endOfMonth(new Date(selectedYear, selectedMonth, 1)), 'yyyy-MM-dd')),
       supabase.from('banks').select('*').eq('household_id', hid),
+      supabase.from('goals').select('name,target_amount,current_amount,icon').eq('household_id', hid).eq('is_completed', false),
+      supabase.from('savings').select('name,type,current_amount,interest_rate').eq('household_id', hid),
+      supabase.from('investments').select('name,type,total_invested,current_price,quantity,avg_price').eq('household_id', hid),
     ])
 
     const txs = txRes.data || []
@@ -62,6 +65,33 @@ export async function GET(req: NextRequest) {
     const plannedExpenses = cashTxs.filter((t: any) => t.type !== 'receita' && t.status !== 'realizado').reduce((s: number, t: any) => s + Number(t.amount), 0)
       + creditInvoiceTxs.reduce((s: number, t: any) => s + Number(t.amount), 0)
     const bankBalances = banks.filter((bank: any) => bank.type !== 'credito').map((bank: any) => ({ name: bank.name, type: bank.type, balance: Number(bank.current_balance || 0) }))
+    const projectedBalance = income + plannedIncome - expenses - plannedExpenses
+    const catMap: Record<string, { name: string; icon: string; amount: number }> = {}
+    for (const tx of [...cashTxs, ...creditInvoiceTxs] as any[]) {
+      if (tx.type !== 'receita' && tx.category) {
+        const key = tx.category.name
+        if (!catMap[key]) catMap[key] = { name: key, icon: tx.category.icon, amount: 0 }
+        catMap[key].amount += Number(tx.amount)
+      }
+    }
+    const savings = (savingsRes.data || []).map((s: any) => ({
+      name: s.name,
+      type: s.type,
+      amount: Number(s.current_amount),
+      rate: s.interest_rate ? Number(s.interest_rate) : null,
+    }))
+    const investments = (investRes.data || []).map((i: any) => {
+      const current = Number(i.quantity || 0) * Number(i.current_price || 0)
+      return {
+        name: i.name,
+        type: i.type,
+        invested: Number(i.total_invested || 0),
+        current,
+        pl: current - Number(i.total_invested || 0),
+      }
+    })
+    const totalPatrimony = savings.reduce((sum: number, item: any) => sum + item.amount, 0)
+      + investments.reduce((sum: number, item: any) => sum + item.current, 0)
 
     const context: AIContext = {
       current_month_income: income,
@@ -69,7 +99,7 @@ export async function GET(req: NextRequest) {
       current_month_balance: income - expenses,
       planned_month_income: plannedIncome,
       planned_month_expenses: plannedExpenses,
-      projected_month_balance: income + plannedIncome - expenses - plannedExpenses,
+      projected_month_balance: projectedBalance,
       cash_balance: bankBalances.reduce((s: number, b: any) => s + b.balance, 0),
       bank_balances: bankBalances,
       credit_card_bills: banks
@@ -81,10 +111,23 @@ export async function GET(req: NextRequest) {
           amount: creditInvoiceTxs.filter((tx: any) => tx.bank_id === bank.id).reduce((s: number, tx: any) => s + Number(tx.amount), 0),
         }))
         .filter((bill: any) => bill.amount > 0),
-      top_expense_categories: [],
-      goals: [],
+      monthly_overview: [{
+        month: String(selectedMonth).padStart(2, '0'),
+        year: selectedYear,
+        income,
+        planned_income: plannedIncome,
+        direct_expenses: expenses,
+        planned_direct_expenses: plannedExpenses - creditInvoiceTxs.reduce((s: number, tx: any) => s + Number(tx.amount), 0),
+        card_invoice: creditInvoiceTxs.reduce((s: number, tx: any) => s + Number(tx.amount), 0),
+        projected_balance: projectedBalance,
+      }],
+      top_expense_categories: Object.values(catMap).sort((a, b) => b.amount - a.amount).slice(0, 5),
+      goals: (goalsRes.data || []).map((g: any) => ({ name: g.name, target: Number(g.target_amount), current: Number(g.current_amount), icon: g.icon })),
       monthly_history: [],
       profiles: [{ name: profile.name }],
+      savings,
+      investments,
+      total_patrimony: totalPatrimony,
     }
 
     const tip = await generateDailyTip(context)
