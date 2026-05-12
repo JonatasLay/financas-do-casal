@@ -107,19 +107,30 @@ Formato: 3 a 5 bullets curtos, com valores reais. Nao seja longa.`,
 }
 
 export async function generateSavingsInsight(context: AIContext): Promise<string> {
-  const response = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 380,
-    system: buildSystemPrompt(context),
-    messages: [{
-      role: 'user',
-      content: `Analise somente a tela de Poupanca/Reserva do casal.
-Use o contexto geral apenas para dizer se faz sentido aumentar, pausar ou manter aportes.
-Considere: total guardado, tipo dos produtos, rendimento cadastrado, reserva de emergencia ideal, saldo projetado do mes e faturas.
-Formato: 3 bullets curtos com diagnostico, risco e proxima acao. Nao fale de meses aleatorios se nao for relevante para a reserva.`,
-    }],
-  })
-  return (response.content[0] as { type: string; text: string }).text
+  const savings = context.savings || []
+  const totalSaved = savings.reduce((sum, item) => sum + item.amount, 0)
+  const weightedRate = totalSaved > 0
+    ? savings.reduce((sum, item) => sum + item.amount * (item.rate || 0), 0) / totalSaved
+    : 0
+  const estimatedYearYield = totalSaved * weightedRate / 100
+  const projectedBalance = context.projected_month_balance ?? context.current_month_balance
+  const monthlyOutflow = Math.max(0, context.current_month_expenses + (context.planned_month_expenses || 0))
+  const emergencyMin = monthlyOutflow * 3
+  const emergencyIdeal = monthlyOutflow * 6
+  const emergencyCoverage = monthlyOutflow > 0 ? totalSaved / monthlyOutflow : 0
+  const action = projectedBalance < 0
+    ? 'Pause novos aportes ate o fluxo do mes ficar positivo; preservar caixa agora vale mais que aumentar reserva.'
+    : emergencyCoverage < 3
+      ? `Priorize reserva: faltam ${brl(Math.max(0, emergencyMin - totalSaved))} para 3 meses de seguranca.`
+      : emergencyCoverage < 6
+        ? `Continue aportando para chegar perto de 6 meses (${brl(emergencyIdeal)}).`
+        : 'Reserva esta forte; avalie separar excedente por metas ou investimentos com prazo maior.'
+
+  return [
+    `Diagnostico: voces tem ${brl(totalSaved)} guardados, cobrindo ~${emergencyCoverage.toFixed(1)} mes(es) do fluxo previsto. Minimo sugerido: ${brl(emergencyMin)}; ideal: ${brl(emergencyIdeal)}.`,
+    `Rendimento: taxa media cadastrada ~${weightedRate.toFixed(2)}% a.a., estimativa de ${brl(estimatedYearYield)}/ano. Confira se essa taxa esta realista para o produto.`,
+    `Acao: ${action}`,
+  ].join('\n')
 }
 
 export async function generateGoalInsight(context: AIContext, goal: {
@@ -130,24 +141,48 @@ export async function generateGoalInsight(context: AIContext, goal: {
   deadline?: string | null
 }): Promise<string> {
   const remaining = Math.max(0, goal.target - goal.current)
-  const response = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 420,
-    system: buildSystemPrompt(context),
-    messages: [{
-      role: 'user',
-      content: `Analise esta meta especifica:
-- Nome: ${goal.name}
-- Valor alvo: ${brl(goal.target)}
-- Valor atual ja guardado: ${brl(goal.current)}
-- Falta: ${brl(remaining)}
-- Contribuicao mensal planejada: ${brl(goal.monthly || 0)}
-- Prazo: ${goal.deadline || 'sem prazo definido'}
+  const projectedBalance = context.projected_month_balance ?? context.current_month_balance
+  const now = new Date()
+  const deadline = goal.deadline ? new Date(`${goal.deadline}T12:00:00`) : null
+  const monthsToDeadline = deadline
+    ? Math.max(0, (deadline.getFullYear() - now.getFullYear()) * 12 + (deadline.getMonth() - now.getMonth()))
+    : null
+  const requiredMonthly = monthsToDeadline && monthsToDeadline > 0
+    ? remaining / monthsToDeadline
+    : remaining
+  const monthsAtCurrent = goal.monthly > 0 ? Math.ceil(remaining / goal.monthly) : null
+  const deadlineLabel = deadline
+    ? `${String(deadline.getMonth() + 1).padStart(2, '0')}/${deadline.getFullYear()}`
+    : 'sem prazo'
 
-Com base na saude financeira geral, diga se a contribuicao mensal e realista, em quanto tempo chega, se o prazo esta em risco e qual ajuste voce recomenda. Formato: 3 a 5 bullets curtos, direto e pratico.`,
-    }],
-  })
-  return (response.content[0] as { type: string; text: string }).text
+  const viability = remaining <= 0
+    ? 'Meta ja atingida.'
+    : goal.monthly <= 0
+      ? `Sem contribuicao mensal definida. Para chegar ate ${deadlineLabel}, precisaria de ${brl(requiredMonthly)}/mes.`
+      : monthsToDeadline && monthsAtCurrent && monthsAtCurrent > monthsToDeadline
+        ? `No ritmo atual (${brl(goal.monthly)}/mes), levaria ~${monthsAtCurrent} meses; o prazo pede ~${brl(requiredMonthly)}/mes.`
+        : `No ritmo atual (${brl(goal.monthly)}/mes), a meta fica viavel em ~${monthsAtCurrent} meses.`
+
+  const cashWarning = projectedBalance <= 0
+    ? `Fluxo do mes esta negativo (${brl(projectedBalance)}). Nao force aporte agora sem receita confirmada.`
+    : requiredMonthly > projectedBalance
+      ? `Aporte necessario (${brl(requiredMonthly)}/mes) passa do saldo projetado (${brl(projectedBalance)}). Ajuste prazo ou valor.`
+      : `Saldo projetado do mes (${brl(projectedBalance)}) comporta a meta se o aporte for tratado como prioridade.`
+
+  const recommendation = projectedBalance <= 0
+    ? 'Prioridade: estabilizar o mes antes de aportar. Quando a receita entrar, separe o aporte no mesmo dia.'
+    : goal.monthly <= 0
+      ? `Defina uma contribuicao inicial de ate ${brl(Math.min(requiredMonthly, projectedBalance))}/mes e reavalie depois da proxima receita.`
+      : monthsToDeadline && monthsAtCurrent && monthsAtCurrent > monthsToDeadline
+        ? `Caminhos: aumentar para ${brl(requiredMonthly)}/mes, reduzir a meta ou empurrar o prazo.`
+        : 'Mantenha aporte automatico mensal e acompanhe se as faturas nao roubam esse dinheiro.'
+
+  return [
+    `Meta: ${goal.name} | guardado ${brl(goal.current)} de ${brl(goal.target)}; falta ${brl(remaining)}.`,
+    deadline ? `Prazo: ${deadlineLabel}, faltam ~${monthsToDeadline} mes(es). ${viability}` : `Prazo: nao definido. ${viability}`,
+    `Saude financeira: ${cashWarning}`,
+    `Proxima acao: ${recommendation}`,
+  ].join('\n')
 }
 
 export async function analyzePurchase(item: string, price: number, context: AIContext): Promise<string> {
