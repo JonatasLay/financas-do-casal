@@ -32,7 +32,7 @@ const fadeUp = (delay = 0) => ({
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-type DetailKind = 'income' | 'expenses' | 'balance' | 'planned' | 'neusa' | 'future-income' | 'future-couple' | 'future-card'
+type DetailKind = 'income' | 'expenses' | 'balance' | 'planned' | 'neusa' | 'future-income' | 'future-couple' | 'future-expenses' | 'future-card'
 
 function DetailModal({ open, title, subtitle, transactions, onClose }: {
   open: boolean
@@ -191,20 +191,20 @@ function QuickStats({ income, expenses, balance, prevBalance, loading }: {
   )
 }
 
-function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedExpenses, balance, projectedBalance, prevBalance, neusaTotal, neusaReceivable, loading, onOpen }: {
-  income: number; plannedIncome: number; expenses: number; plannedExpenses: number
+function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedCashExpenses, plannedCreditInvoices, balance, projectedBalance, prevBalance, neusaTotal, neusaReceivable, loading, onOpen }: {
+  income: number; plannedIncome: number; expenses: number; plannedCashExpenses: number; plannedCreditInvoices: number
   balance: number; projectedBalance: number; prevBalance: number
   neusaTotal: number; neusaReceivable: number; loading: boolean; onOpen: (kind: DetailKind) => void
 }) {
   const balanceDelta = prevBalance !== 0 ? ((projectedBalance - prevBalance) / Math.abs(prevBalance)) * 100 : 0
   const deltaPositive = balanceDelta >= 0
   const totalIncome = income + plannedIncome
-  const totalExpenses = expenses + plannedExpenses
+  const directExpenses = expenses + plannedCashExpenses
   const cards = [
     { kind: 'income' as const, label: 'Receitas', value: totalIncome, detail: `${brl(income)} recebido · ${brl(plannedIncome)} previsto`, color: '#34D399' },
-    { kind: 'expenses' as const, label: 'Despesas', value: totalExpenses, detail: `${brl(expenses)} pago · ${brl(plannedExpenses)} previsto`, color: '#F87171' },
+    { kind: 'expenses' as const, label: 'Despesas diretas', value: directExpenses, detail: `${brl(expenses)} pago · ${brl(plannedCashExpenses)} previsto`, color: '#F87171' },
+    { kind: 'planned' as const, label: 'Fatura cartão', value: plannedCreditInvoices, detail: 'compras que vencem no mes', color: '#FBBF24' },
     { kind: 'balance' as const, label: 'Saldo', value: projectedBalance, detail: `realizado ${brl(balance)}`, color: projectedBalance >= 0 ? '#818CF8' : '#F87171' },
-    { kind: 'planned' as const, label: 'Faturas/previstos', value: plannedExpenses, detail: 'a pagar no mes', color: '#FBBF24' },
     { kind: 'neusa' as const, label: 'Neusa', value: neusaTotal, detail: neusaReceivable > 0 ? `${brl(neusaReceivable)} a receber` : 'sem pendencia', color: '#F9A8D4' },
   ]
 
@@ -443,13 +443,14 @@ export default function DashboardPage() {
 
   const details: Record<DetailKind, { title: string; subtitle: string; transactions: Transaction[] }> = {
     income: { title: 'Receitas do mês', subtitle: 'Recebidas e previstas/agendadas no mês selecionado', transactions: visibleIncomeTransactions },
-    expenses: { title: 'Despesas do casal', subtitle: 'Saídas de caixa realizadas e agendadas, sem compras de crédito antes da fatura', transactions: visibleCashTransactions.filter(t => t.type !== 'receita') },
+    expenses: { title: 'Despesas diretas do casal', subtitle: 'Saídas de caixa realizadas, pendentes e agendadas, sem cartão de crédito', transactions: visibleCashTransactions.filter(t => t.type !== 'receita') },
     balance: { title: 'Composição do saldo', subtitle: `Realizado ${brl(balance)} · Projetado ${brl(projectedBalance)}`, transactions: [...visibleIncomeTransactions, ...visibleCashTransactions.filter(t => t.type !== 'receita'), ...visibleCreditInvoices] },
-    planned: { title: 'Previstos e faturas', subtitle: 'Despesas agendadas e compras de cartão pela fatura do mês', transactions: [...visibleCashTransactions.filter(t => t.type !== 'receita' && t.status !== 'realizado'), ...visibleCreditInvoices] },
+    planned: { title: 'Fatura cartão', subtitle: 'Compras de cartão que vencem no mês selecionado', transactions: visibleCreditInvoices },
     neusa: { title: 'Neusa no mês', subtitle: `Cartão ${brl(neusaCardTotal)} · a receber ${brl(neusaReceivable)}`, transactions: neusaTransactions },
     'future-income': { title: 'Receber na prévia', subtitle: 'Receitas do próximo mês selecionado na prévia', transactions: nextMonthTransactions.filter(t => t.type === 'receita') },
-    'future-couple': { title: 'Casal na prévia', subtitle: 'Despesas diretas e compras de cartão do casal que vencem na prévia', transactions: futureCoupleTransactions },
-    'future-card': { title: 'Fatura real da prévia', subtitle: 'Compras que caem na fatura prevista', transactions: futureCreditInvoices },
+    'future-couple': { title: 'Total cartão + despesas diretas', subtitle: 'Despesas diretas e compras de cartão do casal que vencem na prévia', transactions: futureCoupleTransactions },
+    'future-expenses': { title: 'Despesas diretas da prévia', subtitle: 'Somente despesas do casal sem cartão de crédito', transactions: futureDirectCoupleExpenses },
+    'future-card': { title: 'Fatura cartão da prévia', subtitle: 'Compras do casal que caem na fatura prevista', transactions: futureCreditInvoices.filter(isCouple) },
   }
 
   const byCategory = categories
@@ -536,7 +537,8 @@ export default function DashboardPage() {
               income={income}
               plannedIncome={plannedIncome}
               expenses={expenses}
-              plannedExpenses={plannedExpenses}
+              plannedCashExpenses={plannedCashExpenses}
+              plannedCreditInvoices={plannedCreditInvoices}
               balance={balance}
               projectedBalance={projectedBalance}
               prevBalance={prevBalance}

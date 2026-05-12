@@ -165,7 +165,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       const maxInstallments = isBoletoExpense ? 60 : 36
       const safeInstallments = canGenerateMonthlyRows ? Math.max(1, Math.min(maxInstallments, installments || 1)) : 1
       const startDate = new Date(`${date}T12:00:00`)
-      const recurringMonths = isRecurring && !isEdit ? 12 - startDate.getMonth() : 1
+      const recurringMonths = isRecurring ? 12 - startDate.getMonth() : 1
       const rowCount = isRecurring && !isEdit ? recurringMonths : safeInstallments
       const recurringGroupId = isRecurring && !isEdit && rowCount > 1 ? crypto.randomUUID() : null
       const divideAmount = isCreditExpense && !isRecurring && safeInstallments > 1
@@ -189,14 +189,34 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       }
 
       if (isEdit && editTransaction) {
+        const shouldCreateFutureRecurrences = isRecurring && !editTransaction.recurring_group_id && recurringMonths > 1
+        const editRecurringGroupId = isRecurring
+          ? editTransaction.recurring_group_id || (shouldCreateFutureRecurrences ? crypto.randomUUID() : null)
+          : null
         const editPayload = {
           ...payload,
-          recurring_group_id: isRecurring ? editTransaction.recurring_group_id || null : null,
-          recurring_index: isRecurring ? editTransaction.recurring_index || null : null,
-          recurring_total: isRecurring ? editTransaction.recurring_total || null : null,
+          recurring_group_id: editRecurringGroupId,
+          recurring_index: editRecurringGroupId ? editTransaction.recurring_index || 1 : null,
+          recurring_total: editRecurringGroupId ? editTransaction.recurring_total || recurringMonths : null,
         }
         const { error } = await supabase.from('transactions').update(editPayload).eq('id', editTransaction.id)
         if (error) throw error
+        if (shouldCreateFutureRecurrences && editRecurringGroupId) {
+          const rows = Array.from({ length: recurringMonths - 1 }, (_, index) => {
+            const recurringIndex = index + 2
+            return {
+              ...payload,
+              date: format(addMonths(startDate, index + 1), 'yyyy-MM-dd'),
+              recurring_group_id: editRecurringGroupId,
+              recurring_index: recurringIndex,
+              recurring_total: recurringMonths,
+              household_id: profile.household_id,
+              created_by: profile.id,
+            }
+          })
+          const { error: insertFutureError } = await supabase.from('transactions').insert(rows)
+          if (insertFutureError) throw insertFutureError
+        }
         if (!isRecurring && editTransaction.recurring_group_id) {
           const { error: deleteFutureError } = await supabase
             .from('transactions')

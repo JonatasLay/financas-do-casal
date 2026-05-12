@@ -13,7 +13,7 @@ interface Props {
   creditTransactions: Transaction[]
   banks: Bank[]
   loading?: boolean
-  onOpen?: (kind: 'future-income' | 'future-couple' | 'future-card') => void
+  onOpen?: (kind: 'future-income' | 'future-couple' | 'future-expenses' | 'future-card') => void
 }
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -103,7 +103,7 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         <button type="button" onClick={() => onOpen?.('future-income')} className="rounded-xl p-3 text-left" style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.18)' }}>
           <ArrowUpRight className="w-4 h-4 mb-2" style={{ color: '#34D399' }} />
           <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Receber</p>
@@ -111,13 +111,18 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
         </button>
         <button type="button" onClick={() => onOpen?.('future-couple')} className="rounded-xl p-3 text-left" style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.18)' }}>
           <ArrowDownRight className="w-4 h-4 mb-2" style={{ color: '#F87171' }} />
-          <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Casal</p>
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Total cartão + despesas</p>
           <p className="text-sm font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{brl(coupleOutflow)}</p>
+        </button>
+        <button type="button" onClick={() => onOpen?.('future-expenses')} className="rounded-xl p-3 text-left" style={{ background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.16)' }}>
+          <ArrowDownRight className="w-4 h-4 mb-2" style={{ color: '#F87171' }} />
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Despesas</p>
+          <p className="text-sm font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{brl(directCoupleExpenses)}</p>
         </button>
         <button type="button" onClick={() => onOpen?.('future-card')} className="rounded-xl p-3 text-left" style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.18)' }}>
           <CreditCard className="w-4 h-4 mb-2" style={{ color: '#FB923C' }} />
-          <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Fatura real</p>
-          <p className="text-sm font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{brl(creditTotal)}</p>
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Fatura cartão</p>
+          <p className="text-sm font-bold font-mono-nums" style={{ color: '#F1F5F9' }}>{brl(creditCoupleTotal)}</p>
         </button>
       </div>
 
