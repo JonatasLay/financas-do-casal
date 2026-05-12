@@ -19,6 +19,7 @@ const SUGGESTIONS = [
 ]
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const chatStorageKey = (userId: string) => `fina-chat:${userId}`
 
 export default function AIPage() {
   const supabase = createClient()
@@ -42,11 +43,19 @@ export default function AIPage() {
       if (!user) return
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setProfile(data)
-      setMessages([{
+      const initialMessage: AIMessage = {
         role: 'assistant',
         content: `Oi, ${data?.name?.split(' ')[0] || 'amor'}! 💜 Sou a Fina, sua assistente financeira!\n\nAnalisei seus dados e estou pronta para ajudar. Você pode me perguntar sobre gastos, metas, economias — ou usar o modo "Devo comprar?" para avaliar uma compra antes de fazer!\n\nO que você quer saber?`,
         timestamp: new Date().toISOString(),
-      }])
+      }
+      const stored = sessionStorage.getItem(chatStorageKey(user.id))
+      let parsed: AIMessage[] = []
+      try {
+        parsed = stored ? JSON.parse(stored) as AIMessage[] : []
+      } catch {
+        sessionStorage.removeItem(chatStorageKey(user.id))
+      }
+      setMessages(parsed.length ? parsed : [initialMessage])
     }
     load()
   }, [])
@@ -54,6 +63,11 @@ export default function AIPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  useEffect(() => {
+    if (!profile?.id || messages.length === 0) return
+    sessionStorage.setItem(chatStorageKey(profile.id), JSON.stringify(messages.slice(-60)))
+  }, [profile?.id, messages])
 
   // ── Chat ──────────────────────────────────────────────────────────────────────
 
@@ -223,7 +237,10 @@ export default function AIPage() {
 
           {/* New conversation */}
           <button
-            onClick={() => setMessages(prev => [prev[0]])}
+            onClick={() => {
+              if (profile?.id) sessionStorage.removeItem(chatStorageKey(profile.id))
+              setMessages(prev => [prev[0]])
+            }}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors flex-shrink-0"
             title="Nova conversa"
           >

@@ -50,6 +50,45 @@ function parseBRDate(text: string) {
   return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`
 }
 
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function normalizeSpaces(value: string) {
+  return value.replace(/\s+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').trim()
+}
+
+function titleDescription(value: string) {
+  const trimmed = normalizeSpaces(value)
+  if (!trimmed) return ''
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
+}
+
+function cleanupTransactionDescription(raw: string, bankName: string | null, type: 'receita' | 'despesa') {
+  let cleaned = raw
+    .replace(/\*\*/g, '')
+    .replace(/\b(fina|por favor|pfv|por gentileza)\b[,\s]*/gi, ' ')
+    .replace(/\b(lance|lanca|lança|lancar|lançar|registre|adicione|adicionar|coloque|colocar|crie|criar)\b/gi, ' ')
+    .replace(/(?:r\$\s*)?\d{1,3}(?:\.\d{3})*(?:,\d{2})?|(?:r\$\s*)?\d+(?:[,.]\d{1,2})?/gi, ' ')
+    .replace(/\b(reais|real|brl)\b/gi, ' ')
+    .replace(/\b(data|dia)\s+(de|do|da|em|para)?\s*\d{0,2}\/?\d{0,2}\/?\d{0,4}/gi, ' ')
+    .replace(/\b(hoje|ontem|amanha|amanhã)\b/gi, ' ')
+    .replace(/\b(no|na|num|numa|em|com|via|forma|pagamento|pix|boleto|debito|débito|credito|crédito|cartao|cartão)\b/gi, ' ')
+    .replace(/\b(conta|banco|cartao|cartão)\s+(do|da|de)?\s*/gi, ' ')
+    .replace(/\b(para|pra)\s+(a\s+)?(conta|banco|cartao|cartão)\b/gi, ' ')
+
+  if (bankName) cleaned = cleaned.replace(new RegExp(`\\b${escapeRegex(bankName)}\\b`, 'gi'), ' ')
+
+  cleaned = cleaned
+    .replace(type === 'receita'
+      ? /\b(uma|um|a|o)?\s*(receita|recebi|ganhei|entrada|pagamento)\s+(de|do|da)?\b/gi
+      : /\b(uma|um|a|o)?\s*(despesa|gasto|compra|comprei|paguei)\s+(de|do|da)?\b/gi, ' ')
+    .replace(/\b(de|do|da|dos|das|para|pra|por)\b/gi, ' ')
+    .replace(/[!?.:,;]+/g, ' ')
+
+  return titleDescription(cleaned)
+}
+
 function resolveActionTextFromConversation(messages: AIMessage[], lastMessage: string) {
   if (!/^\s*(sim|pode|confirmo|confirmado|ok|isso|isso mesmo|claro|manda|lanca|lança)\s*[!.]*\s*$/i.test(lastMessage)) {
     return lastMessage
@@ -91,7 +130,7 @@ function parseStructuredTransaction(raw: string) {
 async function tryHandleTransactionAction(supabase: any, userId: string, raw: string) {
   const text = raw.toLowerCase()
   const wantsDelete = /\b(apague|apaga|remova|remove|exclua|excluir|delete)\b/.test(text)
-  const wantsLaunch = /\b(lance|lan[cç]a|registre|adicione|coloque)\b/.test(text)
+  const wantsLaunch = /\b(lance|lan[cç]a|lan[cç]ar|registre|adicione|coloque)\b/.test(text)
   if (wantsDelete) return tryDeleteTransactionFromMessage(supabase, userId, raw)
   if (!wantsLaunch) return null
 
@@ -120,12 +159,8 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
     || categories.find((c: any) => c.type !== (type === 'receita' ? 'despesa' : 'receita'))
     || null
 
-  const cleaned = raw
-    .replace(/(?:lance|lan[cç]a|registre|adicione|coloque)\s*/i, '')
-    .replace(/(?:r\$\s*)?\d{1,3}(?:\.\d{3})*(?:,\d{2})?|(?:r\$\s*)?\d+(?:[,.]\d{1,2})?/i, '')
-    .replace(/\b(no|na|com|cart[aã]o|pix|boleto|d[eé]bito|cr[eé]dito|hoje|ontem)\b/gi, '')
-    .replace(bank?.name || '', '')
-    .trim()
+  const transactionType = structured.type === 'receita' || structured.type === 'despesa' ? structured.type : type
+  const cleaned = cleanupTransactionDescription(raw, bank?.name || null, transactionType)
   const description = cleaned.length >= 3 ? cleaned : type === 'receita' ? 'Receita lançada pela Fina' : 'Despesa lançada pela Fina'
   const paymentText = `${text} ${structured.paymentMethodText || ''}`.toLowerCase()
   const paymentMethod = bank?.type === 'credito' ? 'credito'
@@ -145,7 +180,7 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
     date,
     description: structured.description || description,
     amount,
-    type: structured.type || type,
+    type: transactionType,
     category_id: category?.id || null,
     bank_id: bank?.id || null,
     status: 'realizado',

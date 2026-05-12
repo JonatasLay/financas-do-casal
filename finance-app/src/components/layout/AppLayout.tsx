@@ -42,6 +42,9 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
 
   const handleLogout = async () => {
     setLoggingOut(true)
+    Object.keys(sessionStorage)
+      .filter(key => key.startsWith('fina-chat:'))
+      .forEach(key => sessionStorage.removeItem(key))
     await supabase.auth.signOut()
     router.push('/login')
     toast.success('Até logo! 👋')
