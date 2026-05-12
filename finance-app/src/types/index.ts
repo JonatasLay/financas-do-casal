@@ -103,6 +103,26 @@ export interface AIContext {
   cash_balance?: number
   bank_balances?: { name: string; type: string; balance: number }[]
   credit_card_bills?: { name: string; due_day: number | null; closing_day: number | null; amount: number }[]
+  monthly_overview?: {
+    month: string
+    year: number
+    income: number
+    planned_income: number
+    direct_expenses: number
+    planned_direct_expenses: number
+    card_invoice: number
+    projected_balance: number
+  }[]
+  recent_transactions?: {
+    id: string
+    date: string
+    description: string
+    amount: number
+    type: string
+    status: string
+    bank?: string | null
+    category?: string | null
+  }[]
   top_expense_categories: { name: string; amount: number; icon: string }[]
   goals: { name: string; target: number; current: number; icon: string }[]
   monthly_history: { month: string; income: number; expenses: number }[]

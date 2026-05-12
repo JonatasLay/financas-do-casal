@@ -3,7 +3,7 @@ import { AIContext, AIMessage } from '@/types'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
-const MODEL      = 'claude-haiku-4-5-20251001'
+const MODEL = 'claude-haiku-4-5-20251001'
 const MODEL_CHAT = 'claude-sonnet-4-6'
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -13,7 +13,7 @@ export function buildSystemPrompt(context: AIContext): string {
     .map(c => `${c.icon} ${c.name}: ${brl(c.amount)}`).join(' | ')
 
   const goalsStr = context.goals
-    .map(g => `${g.icon} ${g.name}: ${brl(g.current)} / ${brl(g.target)} (${Math.round(g.current/g.target*100)}%)`)
+    .map(g => `${g.icon} ${g.name}: ${brl(g.current)} / ${brl(g.target)} (${Math.round(g.current / g.target * 100)}%)`)
     .join(' | ')
 
   const savingsStr = (context.savings || [])
@@ -28,61 +28,59 @@ export function buildSystemPrompt(context: AIContext): string {
   const creditBills = (context.credit_card_bills || [])
     .map(c => `${c.name}: ${brl(c.amount)} vence dia ${c.due_day || 10}${c.closing_day ? `, fecha dia ${c.closing_day}` : ''}`).join(' | ')
 
+  const monthlyOverview = (context.monthly_overview || [])
+    .map(m => `${m.month}/${m.year}: receitas ${brl(m.income + m.planned_income)}, despesas diretas ${brl(m.direct_expenses + m.planned_direct_expenses)}, fatura ${brl(m.card_invoice)}, saldo projetado ${brl(m.projected_balance)}`)
+    .join('\n')
+
+  const recentTransactions = (context.recent_transactions || [])
+    .slice(0, 15)
+    .map(t => `${t.date} - ${t.description}: ${t.type === 'receita' ? '+' : '-'}${brl(t.amount)} (${t.status}${t.bank ? `, ${t.bank}` : ''}${t.category ? `, ${t.category}` : ''})`)
+    .join('\n')
+
   const names = context.profiles.map(p => p.name).join(' e ')
-  const patrimony = context.total_patrimony ? brl(context.total_patrimony) : 'não calculado'
+  const patrimony = context.total_patrimony ? brl(context.total_patrimony) : 'nao calculado'
 
-  return `Você é a "Fina" 💜, assistente financeira pessoal e de confiança do casal ${names}.
+  return `Voce e a Fina, a assessora financeira, contabil e operacional do casal ${names}. Aja como uma CFO familiar: organize a casa, proteja o caixa, reduza decisoes impulsivas, crie estrategia e provoque o casal quando o padrao de gasto ameacar os objetivos.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 DADOS FINANCEIROS REAIS (use sempre):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Receita recebida este mês: ${brl(context.current_month_income)}
-• Receita prevista/agendada no mês: ${brl(context.planned_month_income || 0)}
-• Despesas pagas no mês: ${brl(context.current_month_expenses)}
-• Despesas/faturas previstas no mês: ${brl(context.planned_month_expenses || 0)}
-• Saldo realizado do mês: ${brl(context.current_month_balance)} ${context.current_month_balance >= 0 ? '✅' : '⚠️'}
-• Saldo projetado do mês: ${brl(context.projected_month_balance ?? context.current_month_balance)}
-• Saldo atual em contas: ${brl(context.cash_balance || 0)}${bankBalances ? ` (${bankBalances})` : ''}
-• Faturas previstas: ${creditBills || 'Sem faturas previstas no mês'}
-• Principais gastos: ${topCats || 'Sem dados'}
-• Metas ativas: ${goalsStr || 'Nenhuma'}
-• Poupança: ${savingsStr || 'Nenhum registro'}
-• Investimentos: ${investStr || 'Nenhum registro'}
-• Patrimônio total estimado: ${patrimony}
+DADOS FINANCEIROS REAIS
+- Receita recebida este mes: ${brl(context.current_month_income)}
+- Receita prevista/agendada no mes: ${brl(context.planned_month_income || 0)}
+- Despesas diretas pagas no mes: ${brl(context.current_month_expenses)}
+- Despesas diretas/faturas previstas no mes: ${brl(context.planned_month_expenses || 0)}
+- Saldo realizado do mes: ${brl(context.current_month_balance)}
+- Saldo projetado do mes: ${brl(context.projected_month_balance ?? context.current_month_balance)}
+- Saldo atual em contas: ${brl(context.cash_balance || 0)}${bankBalances ? ` (${bankBalances})` : ''}
+- Faturas previstas: ${creditBills || 'Sem faturas previstas no mes'}
+- Visao mes a mes do ano:
+${monthlyOverview || 'Sem visao anual disponivel'}
+- Lancamentos recentes:
+${recentTransactions || 'Sem lancamentos recentes disponiveis'}
+- Principais gastos: ${topCats || 'Sem dados'}
+- Metas ativas: ${goalsStr || 'Nenhuma'}
+- Poupanca: ${savingsStr || 'Nenhum registro'}
+- Investimentos: ${investStr || 'Nenhum registro'}
+- Patrimonio total estimado: ${patrimony}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 REGRAS RÍGIDAS (NUNCA viole):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. ESCOPO: Responda SOMENTE sobre finanças pessoais — orçamento, poupança, dívidas, investimentos conservadores, planejamento, compras, patrimônio.
-   Se perguntarem outro tema: "Sou especialista em finanças! Me pergunte sobre dinheiro 💰"
+REGRAS RIGIDAS
+1. Escopo: responda somente sobre financas pessoais, orcamento familiar, compras, dividas, cartoes, metas, patrimonio, investimentos, planejamento e acoes dentro do app.
+2. Dados: nunca invente numeros. Use os valores acima. Se perguntar sobre um mes especifico, procure na visao mes a mes antes de responder.
+3. Acoes: quando o sistema informar que uma acao foi realizada, confirme e explique o impacto. Se faltar dado ou houver ambiguidade para lancar/remover algo, peca o minimo necessario. Nunca finja que executou uma acao.
+4. Compras: compare saldo projetado, saldo em contas, fatura atual/futura, reserva de emergencia, impacto nas metas e risco comportamental. Termine com uma recomendacao clara: comprar a vista, parcelar em ate X, adiar, ou nao comprar agora.
+5. Investimentos: primeiro reserva de emergencia e fluxo de caixa. Depois fale em categorias, percentuais e riscos. Nao prometa rentabilidade. Para decisoes relevantes, recomende validar com profissional certificado.
+6. Postura: seja consultiva e firme. Se o casal estiver gastando sem controle, fale com carinho, mas sem passar pano. Transforme dados em plano: acao hoje, ajuste no mes, estrategia em 90 dias.
 
-2. DADOS: NUNCA invente números. Se não tiver dado, diga "Preciso de mais lançamentos para analisar isso 📊"
-
-3. INVESTIMENTOS: Para recomendações de investimento:
-   - Analise o perfil baseado nos dados disponíveis
-   - Fale de categorias (renda fixa, Tesouro Direto, CDB, fundos, ações brasileiras, FIIs)
-   - Sugira alocação percentual baseada no saldo disponível
-   - Sempre mencione: "consulte um assessor de investimentos certificado (AAI/CFP) para decisões importantes"
-   - Priorize: reserva de emergência (6x despesas mensais) antes de investimentos de risco
-
-4. COMPRAS: Analise impacto no orçamento real, nota 1-10, alternativas.
-
-5. PATRIMÔNIO: Ajude a calcular e crescer o patrimônio líquido do casal.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💜 SEU JEITO:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Amigável, prática, direta — como uma CFP amiga do casal
-• Use emojis com moderação (máx 3)
-• Máximo 3 parágrafos ou bullet points curtos
-• Celebre conquistas, seja honesta nos alertas
-• Português brasileiro informal e caloroso`
+JEITO DE RESPONDER
+- Amigavel, pratica, direta, com raciocinio de especialista financeiro-contabil.
+- Prefira bullets curtos, numeros e conclusao objetiva.
+- Use emojis com moderacao.
+- Celebre conquistas, mas seja honesta nos alertas.
+- Portugues brasileiro informal e caloroso.`
 }
 
 export async function chatWithFina(messages: AIMessage[], context: AIContext) {
   const response = await anthropic.messages.create({
     model: MODEL_CHAT,
-    max_tokens: 800,
+    max_tokens: 1100,
     system: buildSystemPrompt(context),
     messages: messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
   })
@@ -92,21 +90,26 @@ export async function chatWithFina(messages: AIMessage[], context: AIContext) {
 export async function generateDailyTip(context: AIContext): Promise<string> {
   const response = await anthropic.messages.create({
     model: MODEL,
-    max_tokens: 180,
+    max_tokens: 220,
     system: buildSystemPrompt(context),
-    messages: [{ role: 'user', content: 'Gere UMA dica financeira rápida e específica para hoje, baseada na situação real do casal. Máximo 2 frases. Seja direta e motivadora.' }],
+    messages: [{ role: 'user', content: 'Gere UMA dica financeira rapida e especifica para hoje, baseada na situacao real do casal. Maximo 2 frases. Seja direta, util e, se necessario, provocativa.' }],
   })
   return (response.content[0] as { type: string; text: string }).text
 }
 
 export async function analyzePurchase(item: string, price: number, context: AIContext): Promise<string> {
   const response = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 450,
+    model: MODEL_CHAT,
+    max_tokens: 850,
     system: buildSystemPrompt(context),
     messages: [{
       role: 'user',
-      content: `Devo comprar: "${item}" por ${brl(price)}.\nAnalise com base nos dados reais e me dê:\n1. Nota de viabilidade 1-10\n2. Impacto % no orçamento mensal\n3. Se compromete alguma meta ou reserva de emergência\n4. Recomendação final em 1 frase\nSeja direto e objetivo.`,
+      content: `Quero comprar "${item}" por ${brl(price)}. Com base nos dados reais, responda como minha assessora financeira:
+1. Se compensa comprar agora ou adiar
+2. Se e melhor a vista ou parcelado, e em quantas vezes no maximo
+3. Impacto no saldo projetado, contas, fatura e metas
+4. Nota de viabilidade 1-10
+5. Recomendacao final clara e uma provocacao honesta se eu estiver sendo impulsivo.`,
     }],
   })
   return (response.content[0] as { type: string; text: string }).text
@@ -115,28 +118,25 @@ export async function analyzePurchase(item: string, price: number, context: AICo
 export async function analyzeInvestments(context: AIContext, question: string): Promise<string> {
   const response = await anthropic.messages.create({
     model: MODEL_CHAT,
-    max_tokens: 600,
+    max_tokens: 900,
     system: buildSystemPrompt(context),
-    messages: [{
-      role: 'user',
-      content: question,
-    }],
+    messages: [{ role: 'user', content: question }],
   })
   return (response.content[0] as { type: string; text: string }).text
 }
 
 export async function generateInvestmentInsight(context: AIContext): Promise<string> {
   const hasEmergencyFund = (context.savings || []).reduce((s, sv) => s + sv.amount, 0)
-  const emergencyNeeded  = context.current_month_expenses * 6
-  const emergencyOk      = hasEmergencyFund >= emergencyNeeded
+  const emergencyNeeded = context.current_month_expenses * 6
+  const emergencyOk = hasEmergencyFund >= emergencyNeeded
 
   const prompt = emergencyOk
-    ? `Com reserva de emergência adequada, sugira em 2 frases uma estratégia de investimento diversificada para o casal baseada no saldo mensal disponível de ${brl(context.current_month_balance)}.`
-    : `O casal ainda não tem reserva de emergência suficiente (meta: ${brl(emergencyNeeded)}, atual: ${brl(hasEmergencyFund)}). Explique em 2 frases a importância e sugira onde construí-la.`
+    ? `Com reserva de emergencia adequada, sugira em 2 frases uma estrategia de investimento diversificada para o casal baseada no saldo mensal disponivel de ${brl(context.current_month_balance)}.`
+    : `O casal ainda nao tem reserva de emergencia suficiente (meta: ${brl(emergencyNeeded)}, atual: ${brl(hasEmergencyFund)}). Explique em 2 frases a importancia e sugira onde construir.`
 
   const response = await anthropic.messages.create({
     model: MODEL,
-    max_tokens: 200,
+    max_tokens: 240,
     system: buildSystemPrompt(context),
     messages: [{ role: 'user', content: prompt }],
   })
