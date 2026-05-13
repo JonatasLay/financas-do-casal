@@ -8,7 +8,7 @@ import { AddTransactionModal } from '@/components/transactions/AddTransactionMod
 import { BankLogo } from '@/components/ui/BankLogo'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { CheckCircle2, HandCoins, Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
+import { CalendarDays, CheckCircle2, HandCoins, Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { getCreditCardPaymentDate } from '@/lib/finance-dates'
@@ -44,6 +44,8 @@ const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   transferencia: 'Transfer.',
   outro: 'Outro',
 }
+
+const brl = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 
 function getInstallmentLabel(tx: Transaction) {
   const match = `${tx.description} ${tx.notes || ''}`.match(/(Parcela|Boleto)\s+(\d{1,2})\/(\d{1,2})/i)
@@ -129,8 +131,9 @@ function TransactionRow({
       <div
         className="relative rounded-2xl p-4 z-10"
         style={{
-          background: 'rgba(17,17,36,0.8)',
+          background: 'rgba(17,17,36,0.72)',
           border: '1px solid rgba(129,140,248,0.12)',
+          borderLeft: `3px solid ${color}`,
           transform: `translateX(-${offsetX}px)`,
           transition: touching ? 'none' : 'transform 0.2s ease',
         }}
@@ -259,9 +262,9 @@ function TransactionRow({
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
-            <p className="text-sm font-bold" style={{ color }}>
-              {sign}R${' '}
-              {Number(tx.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            <p className="rounded-xl px-3 py-1.5 text-sm font-bold font-mono-nums"
+              style={{ color, background: color + '12', border: `1px solid ${color}24` }}>
+              {sign}{brl(Number(tx.amount))}
             </p>
           </div>
         </div>
@@ -290,11 +293,11 @@ function RowSkeleton() {
 
 function SummaryChip({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="flex-1 rounded-2xl px-3 py-2.5 text-center"
-      style={{ background: 'rgba(17,17,36,0.8)', border: '1px solid rgba(129,140,248,0.1)' }}>
-      <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: '#475569' }}>{label}</p>
-      <p className="text-sm font-bold mt-0.5 font-mono-nums" style={{ color }}>
-        R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+    <div className="rounded-2xl px-4 py-3 min-h-[74px] flex flex-col justify-between"
+      style={{ background: `linear-gradient(135deg, ${color}14, rgba(17,17,36,0.88))`, border: `1px solid ${color}33` }}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>{label}</p>
+      <p className="text-base font-bold mt-1 font-mono-nums" style={{ color }}>
+        {brl(value)}
       </p>
     </div>
   )
@@ -315,6 +318,51 @@ function FilterBtn({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
+
+function TransactionDayGroup({
+  date,
+  total,
+  children,
+}: {
+  date: string
+  total: number
+  children: React.ReactNode
+}) {
+  const dateObj = new Date(`${date}T12:00:00`)
+  const isPositive = total >= 0
+
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(129,140,248,0.12)', color: '#A5B4FC' }}>
+            <CalendarDays className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold capitalize" style={{ color: '#E2E8F0' }}>
+              {format(dateObj, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+            </p>
+            <p className="text-[11px]" style={{ color: '#475569' }}>
+              {format(dateObj, 'yyyy', { locale: ptBR })}
+            </p>
+          </div>
+        </div>
+        <div className="rounded-xl px-3 py-1.5 text-xs font-bold font-mono-nums"
+          style={{
+            background: isPositive ? 'rgba(52,211,153,0.10)' : 'rgba(248,113,113,0.10)',
+            border: isPositive ? '1px solid rgba(52,211,153,0.20)' : '1px solid rgba(248,113,113,0.20)',
+            color: isPositive ? '#34D399' : '#F87171',
+          }}>
+          {isPositive ? '+' : ''}{brl(total)}
+        </div>
+      </div>
+      <div className="space-y-2">
+        {children}
+      </div>
+    </section>
+  )
+}
 
 export default function TransactionsPage() {
   const supabase = createClient()
@@ -441,6 +489,21 @@ export default function TransactionsPage() {
     return true
   })
 
+  const groupedTransactions = filtered.reduce((groups, tx) => {
+    const key = tx.date
+    if (!groups[key]) groups[key] = []
+    groups[key].push(tx)
+    return groups
+  }, {} as Record<string, Transaction[]>)
+
+  const groupedEntries = Object.entries(groupedTransactions)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, items]) => ({
+      date,
+      items,
+      total: items.reduce((sum, tx) => sum + (tx.type === 'receita' ? Number(tx.amount) : -Number(tx.amount)), 0),
+    }))
+
   const bankById = new Map(banks.map(bank => [bank.id, bank]))
   const isCreditTx = (tx: Transaction) => bankById.get(tx.bank_id || '')?.type === 'credito'
   const creditInvoiceDueThisMonth = creditInvoiceTransactions.filter(tx => {
@@ -476,6 +539,8 @@ export default function TransactionsPage() {
     <AppLayout profile={profile}>
       <div className="pb-28 md:pb-8 space-y-4">
 
+        <section className="rounded-3xl p-4 md:p-5 space-y-4"
+          style={{ background: 'rgba(13,13,26,0.72)', border: '1px solid rgba(129,140,248,0.16)', boxShadow: '0 18px 60px rgba(0,0,0,0.22)' }}>
         {/* Page title */}
         <div className="flex items-center justify-between">
           <div>
@@ -489,13 +554,15 @@ export default function TransactionsPage() {
         <MonthSelector value={currentDate} onChange={d => { setCurrentDate(d); setLoading(true) }} />
 
         {/* Summary */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
           <SummaryChip label="Receitas mês" value={income + plannedIncome} color="#34D399" />
           <SummaryChip label="Desp. casal" value={coupleExpenses} color="#818CF8" />
           <SummaryChip label="Desp. Neusa" value={neusaExpenses} color="#F9A8D4" />
           <SummaryChip label="Total despesas" value={globalExpenses} color="#FB923C" />
           <SummaryChip label="Saldo previsto" value={balance} color={balance >= 0 ? '#34D399' : '#F87171'} />
         </div>
+        </section>
+
         {neusaPending > 0 && (
           <div className="rounded-2xl px-3 py-2 flex items-center justify-between gap-3"
             style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.16)' }}>
@@ -507,7 +574,8 @@ export default function TransactionsPage() {
         )}
 
         {/* Search + Filter toggle */}
-        <div className="flex gap-2">
+        <div className="sticky top-20 z-20 flex gap-2 rounded-2xl p-2"
+          style={{ background: 'rgba(8,8,15,0.82)', border: '1px solid rgba(129,140,248,0.10)', backdropFilter: 'blur(16px)' }}>
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#475569' }} />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
@@ -624,7 +692,7 @@ export default function TransactionsPage() {
         )}
 
         {/* List */}
-        <div>
+        <div className="space-y-5">
           {loading ? (
             Array.from({ length: 5 }).map((_, i) => <RowSkeleton key={i} />)
           ) : filtered.length === 0 ? (
@@ -642,13 +710,17 @@ export default function TransactionsPage() {
               )}
             </div>
           ) : (
-            filtered.map(tx => (
-              <TransactionRow key={tx.id} tx={tx}
-                onDelete={() => setDeletingTx(tx)}
-                onEdit={() => handleEdit(tx)}
-                onPay={() => handlePay(tx)}
-                onReimburse={() => handleReimburse(tx)}
-              />
+            groupedEntries.map(group => (
+              <TransactionDayGroup key={group.date} date={group.date} total={group.total}>
+                {group.items.map(tx => (
+                  <TransactionRow key={tx.id} tx={tx}
+                    onDelete={() => setDeletingTx(tx)}
+                    onEdit={() => handleEdit(tx)}
+                    onPay={() => handlePay(tx)}
+                    onReimburse={() => handleReimburse(tx)}
+                  />
+                ))}
+              </TransactionDayGroup>
             ))
           )}
         </div>
