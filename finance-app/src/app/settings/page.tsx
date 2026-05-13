@@ -9,7 +9,7 @@ import { BankLogo } from '@/components/ui/BankLogo'
 import { UserAdminTab } from '@/components/settings/UserAdminTab'
 import { SecurityTab } from '@/components/settings/SecurityTab'
 import { toast } from 'sonner'
-import { format, startOfMonth, endOfMonth } from 'date-fns'
+import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Trash2, Plus, Save, AlertTriangle, ChevronDown, ChevronUp, Camera, Pencil, X, Eye, EyeOff, Users, KeyRound, ShieldCheck } from 'lucide-react'
 import type { Category, Bank, Budget, Profile } from '@/types'
@@ -914,6 +914,26 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
     loadData()
   }
 
+  const copyPreviousMonth = async () => {
+    const previous = subMonths(currentDate, 1)
+    const previousMonth = previous.getMonth() + 1
+    const previousYear = previous.getFullYear()
+    const { data, error } = await supabase
+      .from('budgets')
+      .select('category_id, amount')
+      .eq('household_id', householdId)
+      .eq('month', previousMonth)
+      .eq('year', previousYear)
+
+    if (error) return void toast.error('Não consegui buscar o mês anterior')
+    if (!data?.length) return void toast.info('Não há orçamentos no mês anterior para copiar')
+
+    const nextValues: Record<string, string> = {}
+    for (const budget of data) nextValues[budget.category_id] = String(budget.amount)
+    setBudgetValues(prev => ({ ...prev, ...nextValues }))
+    toast.success('Limites do mês anterior copiados. Revise e salve.')
+  }
+
   const expenseCategories = categories.filter(c => c.type === 'despesa' || c.type === 'ambos')
   const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
 
@@ -930,6 +950,11 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
           <p className="font-semibold" style={textStyle}>{format(currentDate, 'MMMM yyyy', { locale: ptBR })}</p>
           <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>Defina o limite mensal por categoria</p>
         </div>
+        <button onClick={copyPreviousMonth}
+          className="px-3 py-2 rounded-xl text-xs font-semibold"
+          style={{ background: 'rgba(129,140,248,0.10)', border: '1px solid rgba(129,140,248,0.22)', color: '#A5B4FC' }}>
+          Copiar mês anterior
+        </button>
       </div>
 
       {expenseCategories.length === 0 ? (

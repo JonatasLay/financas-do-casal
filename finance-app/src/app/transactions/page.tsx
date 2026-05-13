@@ -5,10 +5,11 @@ import { createClient } from '@/lib/supabase/client'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { MonthSelector } from '@/components/ui/MonthSelector'
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal'
+import { StatementImportModal } from '@/components/transactions/StatementImportModal'
 import { BankLogo } from '@/components/ui/BankLogo'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { CalendarDays, CheckCircle2, HandCoins, Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
+import { CalendarDays, CheckCircle2, FileUp, HandCoins, Plus, Search, Trash2, Pencil, X, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { getCreditCardPaymentDate } from '@/lib/finance-dates'
@@ -375,6 +376,7 @@ export default function TransactionsPage() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [deletingTx, setDeletingTx] = useState<Transaction | null>(null)
   const [showFilters, setShowFilters] = useState(false)
@@ -549,6 +551,12 @@ export default function TransactionsPage() {
               {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
             </p>
           </div>
+          <button onClick={() => setShowImportModal(true)}
+            className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold"
+            style={{ background: 'rgba(34,211,238,0.10)', border: '1px solid rgba(34,211,238,0.22)', color: '#22D3EE' }}>
+            <FileUp className="w-4 h-4" />
+            Importar extrato
+          </button>
         </div>
 
         <MonthSelector value={currentDate} onChange={d => { setCurrentDate(d); setLoading(true) }} />
@@ -599,6 +607,12 @@ export default function TransactionsPage() {
                 {activeFilterCount}
               </span>
             )}
+          </button>
+          <button onClick={() => setShowImportModal(true)}
+            className="md:hidden flex items-center justify-center px-3.5 py-2.5 rounded-xl"
+            style={{ background: 'rgba(34,211,238,0.10)', border: '1px solid rgba(34,211,238,0.22)', color: '#22D3EE' }}
+            aria-label="Importar extrato">
+            <FileUp className="w-4 h-4" />
           </button>
         </div>
 
@@ -739,6 +753,17 @@ export default function TransactionsPage() {
         onClose={handleModalClose}
         onSuccess={fetchData}
         editTransaction={editingTx}
+      />
+
+      <StatementImportModal
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={fetchData}
+        banks={banks}
+        categories={categories}
+        existingTransactions={transactions}
+        householdId={profile?.household_id}
+        profileId={profile?.id}
       />
 
       <ConfirmDialog

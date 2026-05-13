@@ -13,6 +13,7 @@ import { BudgetsMini } from '@/components/dashboard/BudgetsMini'
 import { CreditCardSummary } from '@/components/dashboard/CreditCardSummary'
 import { FuturePreview } from '@/components/dashboard/FuturePreview'
 import { DollarRate } from '@/components/dashboard/DollarRate'
+import { FinancialAlerts } from '@/components/dashboard/FinancialAlerts'
 import { MonthSelector } from '@/components/ui/MonthSelector'
 import { BankLogo } from '@/components/ui/BankLogo'
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal'
@@ -550,6 +551,19 @@ export default function DashboardPage() {
           </motion.div>
 
           {/* ── Row 4.5: Future preview ── */}
+          <motion.div {...fadeUp(0.10)}>
+            <FinancialAlerts
+              projectedBalance={projectedBalance}
+              cashBalance={banks.filter(bank => bank.type !== 'credito').reduce((sum, bank) => sum + Number(bank.current_balance || 0), 0)}
+              neusaReceivable={neusaReceivable}
+              budgets={budgets}
+              transactions={coupleFinancialTransactions}
+              creditInvoiceTotal={cardInvoiceTotal}
+              selectedMonth={currentDate}
+              loading={loading}
+            />
+          </motion.div>
+
           <motion.div {...fadeUp(0.135)}>
             <FuturePreview
               targetMonth={addMonths(currentDate, 1)}
