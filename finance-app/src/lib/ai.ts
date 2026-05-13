@@ -74,12 +74,14 @@ JEITO DE RESPONDER
 - Prefira bullets curtos, numeros e conclusao objetiva.
 - Use emojis com moderacao.
 - Celebre conquistas, mas seja honesta nos alertas.
-- Portugues brasileiro informal e caloroso.`
+- Use portugues brasileiro correto, com acentos, concordancia e frases curtas.
+- Se um numero nao estiver nos dados fornecidos, diga que nao ha dado suficiente em vez de estimar.`
 }
 
 export async function chatWithFina(messages: AIMessage[], context: AIContext) {
   const response = await anthropic.messages.create({
     model: MODEL_CHAT,
+    temperature: 0.1,
     max_tokens: 1100,
     system: buildSystemPrompt(context),
     messages: messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
@@ -90,6 +92,7 @@ export async function chatWithFina(messages: AIMessage[], context: AIContext) {
 export async function generateDailyTip(context: AIContext): Promise<string> {
   const response = await anthropic.messages.create({
     model: MODEL,
+    temperature: 0.1,
     max_tokens: 360,
     system: buildSystemPrompt(context),
     messages: [{
@@ -188,6 +191,7 @@ export async function generateGoalInsight(context: AIContext, goal: {
 export async function analyzePurchase(item: string, price: number, context: AIContext): Promise<string> {
   const response = await anthropic.messages.create({
     model: MODEL_CHAT,
+    temperature: 0.1,
     max_tokens: 850,
     system: buildSystemPrompt(context),
     messages: [{
@@ -206,6 +210,7 @@ export async function analyzePurchase(item: string, price: number, context: AICo
 export async function analyzeInvestments(context: AIContext, question: string): Promise<string> {
   const response = await anthropic.messages.create({
     model: MODEL_CHAT,
+    temperature: 0.1,
     max_tokens: 900,
     system: buildSystemPrompt(context),
     messages: [{ role: 'user', content: question }],
@@ -224,6 +229,7 @@ export async function generateInvestmentInsight(context: AIContext): Promise<str
 
   const response = await anthropic.messages.create({
     model: MODEL,
+    temperature: 0.1,
     max_tokens: 240,
     system: buildSystemPrompt(context),
     messages: [{ role: 'user', content: prompt }],

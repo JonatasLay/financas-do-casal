@@ -490,11 +490,11 @@ export default function TransactionsPage() {
 
         {/* Summary */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          <SummaryChip label="Receitas" value={income + plannedIncome} color="#34D399" />
-          <SummaryChip label="Casal" value={coupleExpenses} color="#818CF8" />
-          <SummaryChip label="Neusa" value={neusaExpenses} color="#F9A8D4" />
-          <SummaryChip label="Global" value={globalExpenses} color="#FB923C" />
-          <SummaryChip label="Saldo" value={balance} color={balance >= 0 ? '#34D399' : '#F87171'} />
+          <SummaryChip label="Receitas mês" value={income + plannedIncome} color="#34D399" />
+          <SummaryChip label="Desp. casal" value={coupleExpenses} color="#818CF8" />
+          <SummaryChip label="Desp. Neusa" value={neusaExpenses} color="#F9A8D4" />
+          <SummaryChip label="Total despesas" value={globalExpenses} color="#FB923C" />
+          <SummaryChip label="Saldo previsto" value={balance} color={balance >= 0 ? '#34D399' : '#F87171'} />
         </div>
         {neusaPending > 0 && (
           <div className="rounded-2xl px-3 py-2 flex items-center justify-between gap-3"

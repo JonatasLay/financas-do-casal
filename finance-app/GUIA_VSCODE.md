@@ -57,8 +57,8 @@ No VS Code, crie o arquivo `.env.local` na raiz do projeto:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6...
-ANTHROPIC_API_KEY=sk-ant-api03-...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=cole_a_chave_anon_public_aqui
+ANTHROPIC_API_KEY=cole_a_chave_anthropic_aqui
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 

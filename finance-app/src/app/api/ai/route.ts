@@ -191,7 +191,10 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
     payment_method: paymentMethod,
   })
 
-  if (error) return `Tentei lançar, mas o banco retornou erro: ${error.message}`
+  if (error) {
+    console.error('AI transaction insert error:', error)
+    return 'Tentei lançar, mas não consegui gravar com segurança. Revise valor, data, conta e categoria, e tente novamente.'
+  }
   return `Lançado com sucesso: ${description}, ${type === 'receita' ? 'receita' : 'despesa'} de ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}${bank ? ` em ${bank.name}` : ''}.`
 }
 
@@ -222,7 +225,10 @@ async function tryDeleteTransactionFromMessage(supabase: any, userId: string, ra
   if (amount > 0) query = query.eq('amount', amount)
 
   const { data: matches, error } = await query
-  if (error) return `Tentei procurar para remover, mas o banco retornou erro: ${error.message}`
+  if (error) {
+    console.error('AI transaction lookup error:', error)
+    return 'Tentei procurar esse lançamento, mas não consegui consultar com segurança agora. Tente novamente em instantes.'
+  }
   if (!matches?.length) return 'Nao achei um lancamento com esses dados. Me diga a descricao e o valor para eu remover com seguranca.'
   if (matches.length > 1) {
     const options = matches.map((tx: any) => `- ${tx.description}, ${Number(tx.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}, ${tx.date}`).join('\n')
@@ -235,7 +241,10 @@ async function tryDeleteTransactionFromMessage(supabase: any, userId: string, ra
     ? supabase.from('transactions').delete().eq('recurring_group_id', tx.recurring_group_id).gte('date', tx.date)
     : supabase.from('transactions').delete().eq('id', tx.id)
   const { error: deleteError } = await deleteQuery
-  if (deleteError) return `Encontrei, mas nao consegui remover: ${deleteError.message}`
+  if (deleteError) {
+    console.error('AI transaction delete error:', deleteError)
+    return 'Encontrei o lançamento, mas não consegui remover com segurança. Tente novamente ou remova pela tela de lançamentos.'
+  }
 
   return removeFutureSeries
     ? `Removi "${tx.description}" e as recorrencias futuras a partir de ${tx.date}. Isso melhora a previsao dos proximos meses.`
