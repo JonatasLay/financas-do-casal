@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
-  LayoutDashboard, List, Target, Bot, Settings, LogOut,
+  LayoutDashboard, List, Target, Settings, LogOut,
   Plus, PiggyBank, LineChart,
 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { FinaChatBubble } from './FinaChatBubble'
 
 const NAV_ITEMS = [
   { href: '/',             label: 'Dashboard',     icon: LayoutDashboard, emoji: '🏠', color: '#818CF8' },
@@ -16,7 +17,6 @@ const NAV_ITEMS = [
   { href: '/goals',        label: 'Metas',          icon: Target,          emoji: '🎯', color: '#F472B6' },
   { href: '/savings',      label: 'Poupança',       icon: PiggyBank,       emoji: '💰', color: '#34D399' },
   { href: '/investments',  label: 'Investimentos',  icon: LineChart,       emoji: '📈', color: '#FBBF24' },
-  { href: '/ai',           label: 'Fina IA',        icon: Bot,             emoji: '🤖', color: '#C084FC' },
   { href: '/settings',     label: 'Config',         icon: Settings,        emoji: '⚙️', color: '#94A3B8' },
 ]
 
@@ -24,7 +24,6 @@ const MOBILE_NAV = [
   { href: '/',             label: 'Home',       emoji: '🏠', color: '#818CF8' },
   { href: '/transactions', label: 'Gastos',     emoji: '📋', color: '#22D3EE' },
   { href: '/goals',        label: 'Metas',      emoji: '🎯', color: '#F472B6' },
-  { href: '/ai',           label: 'Fina IA',    emoji: '🤖', color: '#C084FC' },
   { href: '/settings',     label: 'Config',     emoji: '⚙️', color: '#94A3B8' },
 ]
 
@@ -204,6 +203,8 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
           })}
         </div>
       </nav>
+
+      <FinaChatBubble profile={profile} />
     </div>
   )
 }
