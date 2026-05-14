@@ -91,8 +91,8 @@ export function FinancialAlerts({
     const year = selectedMonth.getFullYear()
     alerts.push({
       key: 'neusa',
-      title: 'Reembolso da Neusa pendente',
-      detail: `${brl(neusaReceivable)} ainda precisa ser reembolsado. Gere o relatório para enviar.`,
+      title: 'Reembolso da Neusa no cartão',
+      detail: `${brl(neusaReceivable)} em compras no cartão ainda precisa ser reembolsado. Gere o relatório para enviar.`,
       tone: 'info',
       icon: <ReceiptText className="w-4 h-4" />,
       href: `/reports/neusa?month=${month}&year=${year}`,

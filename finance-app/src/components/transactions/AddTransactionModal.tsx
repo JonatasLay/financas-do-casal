@@ -430,7 +430,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
                     Cartao de credito
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>
-                    Registre como despesa. A fatura e prevista pelo vencimento do cartao.
+                    Registre como despesa. A fatura é prevista pelo vencimento do cartão.
                   </p>
                 </div>
               </div>
@@ -527,7 +527,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
               <div className="grid grid-cols-2 gap-2">
                 {([
                   { value: 'casal', label: 'Casal', detail: 'Jonatas / Thuany', color: '#818CF8' },
-                  { value: 'sogra', label: 'Neusa', detail: 'Reembolso da sogra', color: '#F472B6' },
+                  { value: 'sogra', label: 'Neusa', detail: 'Cartão ou despesa dela', color: '#F472B6' },
                 ] as const).map(item => {
                   const active = responsibleParty === item.value
                   return (
@@ -557,8 +557,8 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
                 <input type="checkbox" checked={isReimbursed} onChange={e => setIsReimbursed(e.target.checked)}
                   className="w-4 h-4 accent-pink-500 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium" style={{ color: '#F1F5F9' }}>Neusa ja reembolsou</p>
-                  <p className="text-xs" style={{ color: '#64748B' }}>Use para separar pendente de reembolso recebido.</p>
+                  <p className="text-sm font-medium" style={{ color: '#F1F5F9' }}>Neusa já pagou/reembolsou</p>
+                  <p className="text-xs" style={{ color: '#64748B' }}>No cartão, marca o reembolso. Em despesa direta, marca que a conta dela foi paga.</p>
                 </div>
               </label>
             )}

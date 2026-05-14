@@ -523,10 +523,14 @@ export default function TransactionsPage() {
     .filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === 'casal')
     .reduce((s, t) => s + Number(t.amount), 0)
   const globalExpenses = coupleExpenses
-  const neusaExpenses = monthFinancialTransactions
+  const neusaCardExpenses = creditInvoiceDueThisMonth
     .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra')
     .reduce((s, t) => s + Number(t.amount), 0)
-  const neusaPending = monthFinancialTransactions
+  const neusaDirectExpenses = cashTransactions
+    .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra')
+    .reduce((s, t) => s + Number(t.amount), 0)
+  const neusaExpenses = neusaCardExpenses + neusaDirectExpenses
+  const neusaPending = creditInvoiceDueThisMonth
     .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra' && !t.is_reimbursed)
     .reduce((s, t) => s + Number(t.amount), 0)
   const balance  = income + plannedIncome - coupleExpenses
@@ -565,16 +569,35 @@ export default function TransactionsPage() {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
           <SummaryChip label="Receitas mês" value={income + plannedIncome} color="#34D399" />
           <SummaryChip label="Desp. casal" value={coupleExpenses} color="#818CF8" />
-          <SummaryChip label="Desp. Neusa" value={neusaExpenses} color="#F9A8D4" />
+          <SummaryChip label="Neusa total" value={neusaExpenses} color="#F9A8D4" />
           <SummaryChip label="Total despesas" value={globalExpenses} color="#FB923C" />
           <SummaryChip label="Saldo previsto" value={balance} color={balance >= 0 ? '#34D399' : '#F87171'} />
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 rounded-2xl p-1.5" style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          {([
+            { value: '' as const, label: 'Todos' },
+            { value: 'casal' as const, label: 'Casal' },
+            { value: 'sogra' as const, label: 'Neusa' },
+          ]).map(item => {
+            const active = filterResponsible === item.value
+            return (
+              <button key={item.label} type="button" onClick={() => setFilterResponsible(item.value)}
+                className="rounded-xl px-3 py-2 text-sm font-semibold transition-all"
+                style={active
+                  ? { background: 'rgba(129,140,248,0.18)', color: '#C7D2FE', border: '1px solid rgba(129,140,248,0.35)' }
+                  : { color: '#64748B', border: '1px solid transparent' }}>
+                {item.label}
+              </button>
+            )
+          })}
         </div>
         </section>
 
         {neusaPending > 0 && (
           <div className="rounded-2xl px-3 py-2 flex items-center justify-between gap-3"
             style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.16)' }}>
-            <span className="text-xs font-medium" style={{ color: '#FBBF24' }}>Neusa a reembolsar neste mes</span>
+            <span className="text-xs font-medium" style={{ color: '#FBBF24' }}>Neusa no cartão a reembolsar neste mês</span>
             <span className="text-xs font-bold font-mono-nums" style={{ color: '#FBBF24' }}>
               R$ {neusaPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </span>

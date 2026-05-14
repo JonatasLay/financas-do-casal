@@ -73,17 +73,20 @@ export default function NeusaReportPage() {
 
   const bankById = new Map(banks.map(bank => [bank.id, bank]))
   const isCreditTx = (tx: Transaction) => bankById.get(tx.bank_id || '')?.type === 'credito'
-  const cashTxs = transactions.filter(tx => !isCreditTx(tx))
+  const cashTxs = transactions.filter(tx => !isCreditTx(tx) && tx.type !== 'receita')
   const creditTxs = creditTransactions.filter(tx => {
     const bank = bankById.get(tx.bank_id || '')
     if (!bank || bank.type !== 'credito' || tx.type === 'receita') return false
     return isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day, bank.closing_day), selectedDate)
   })
-  const reportTxs = [...cashTxs, ...creditTxs].filter(tx => tx.type !== 'receita')
-    .sort((a, b) => a.date.localeCompare(b.date))
+  const cardTxs = creditTxs.sort((a, b) => a.date.localeCompare(b.date))
+  const directTxs = cashTxs.sort((a, b) => a.date.localeCompare(b.date))
+  const reportTxs = [...directTxs, ...cardTxs].sort((a, b) => a.date.localeCompare(b.date))
   const total = reportTxs.reduce((sum, tx) => sum + Number(tx.amount), 0)
-  const pending = reportTxs.filter(tx => !tx.is_reimbursed).reduce((sum, tx) => sum + Number(tx.amount), 0)
-  const reimbursed = total - pending
+  const cardTotal = cardTxs.reduce((sum, tx) => sum + Number(tx.amount), 0)
+  const directTotal = directTxs.reduce((sum, tx) => sum + Number(tx.amount), 0)
+  const pending = cardTxs.filter(tx => !tx.is_reimbursed).reduce((sum, tx) => sum + Number(tx.amount), 0)
+  const reimbursed = cardTotal - pending
   const title = `Relatório Neusa - ${format(selectedDate, 'MMMM yyyy', { locale: ptBR })}`
 
   return (
@@ -118,7 +121,7 @@ export default function NeusaReportPage() {
               <h1 className="text-xl md:text-2xl font-bold" style={{ color: '#F1F5F9' }}>{title}</h1>
             </div>
             <p className="print-muted text-sm mt-1" style={{ color: '#94A3B8' }}>
-              Gastos lançados como responsabilidade da Neusa no mês selecionado.
+              Gastos lançados como responsabilidade da Neusa, separados entre cartão de vocês e despesas diretas dela.
             </p>
           </div>
           <div className="text-right">
@@ -128,11 +131,13 @@ export default function NeusaReportPage() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-5">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 my-5">
           {[
-            { label: 'Total do mês', value: total, color: '#F9A8D4' },
-            { label: 'Pendente de reembolso', value: pending, color: '#FBBF24' },
-            { label: 'Já reembolsado', value: reimbursed, color: '#34D399' },
+            { label: 'Total Neusa', value: total, color: '#F9A8D4' },
+            { label: 'Cartão a reembolsar', value: pending, color: '#FBBF24' },
+            { label: 'Cartão já reemb.', value: reimbursed, color: '#34D399' },
+            { label: 'Total no cartão', value: cardTotal, color: '#FB923C' },
+            { label: 'Despesas diretas dela', value: directTotal, color: '#A78BFA' },
           ].map(item => (
             <div key={item.label} className="rounded-2xl p-4 print-row"
               style={{ background: `${item.color}12`, border: `1px solid ${item.color}33` }}>
@@ -147,23 +152,55 @@ export default function NeusaReportPage() {
         ) : reportTxs.length === 0 ? (
           <p className="print-muted text-sm py-8" style={{ color: '#94A3B8' }}>Nenhum gasto da Neusa neste mês.</p>
         ) : (
-          <div className="space-y-2">
-            {reportTxs.map(tx => (
+          <div className="space-y-6">
+            {cardTxs.length > 0 && (
+              <section className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Uso do cartão de vocês</h2>
+                  <span className="print-muted text-xs" style={{ color: '#94A3B8' }}>Pendente: {brl(pending)}</span>
+                </div>
+                {cardTxs.map(tx => (
+                  <div key={tx.id} className="print-row rounded-xl px-3 py-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2"
+                    style={{ background: 'rgba(251,146,60,0.06)', border: '1px solid rgba(251,146,60,0.14)' }}>
+                    <div className="min-w-0">
+                      <p className="font-semibold" style={{ color: '#F1F5F9' }}>{tx.description}</p>
+                      <p className="print-muted text-xs mt-1 flex flex-wrap items-center gap-1.5" style={{ color: '#94A3B8' }}>
+                        <span>{format(new Date(`${tx.date}T12:00:00`), 'dd/MM/yyyy')}</span>
+                        {tx.category?.name && <span>· {tx.category.name}</span>}
+                        {tx.bank && <span className="inline-flex items-center gap-1">· <BankLogo bank={tx.bank} size="xs" /> {tx.bank.name}</span>}
+                        <span>· fatura {format(getCreditCardPaymentDate(tx.date, tx.bank?.due_day, tx.bank?.closing_day), 'MM/yyyy')}</span>
+                        <span>· {tx.is_reimbursed ? 'reembolsado' : 'pendente'}</span>
+                      </p>
+                    </div>
+                    <p className="font-bold md:text-right" style={{ color: tx.is_reimbursed ? '#34D399' : '#FBBF24' }}>{brl(Number(tx.amount))}</p>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            {directTxs.length > 0 && (
+              <section className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Despesas diretas dela</h2>
+                  <span className="print-muted text-xs" style={{ color: '#94A3B8' }}>Controle: {brl(directTotal)}</span>
+                </div>
+                {directTxs.map(tx => (
               <div key={tx.id} className="print-row rounded-xl px-3 py-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.14)' }}>
                 <div className="min-w-0">
                   <p className="font-semibold" style={{ color: '#F1F5F9' }}>{tx.description}</p>
                   <p className="print-muted text-xs mt-1 flex flex-wrap items-center gap-1.5" style={{ color: '#94A3B8' }}>
                     <span>{format(new Date(`${tx.date}T12:00:00`), 'dd/MM/yyyy')}</span>
                     {tx.category?.name && <span>· {tx.category.name}</span>}
                     {tx.bank && <span className="inline-flex items-center gap-1">· <BankLogo bank={tx.bank} size="xs" /> {tx.bank.name}</span>}
-                    {isCreditTx(tx) && <span>· fatura {format(getCreditCardPaymentDate(tx.date, tx.bank?.due_day, tx.bank?.closing_day), 'MM/yyyy')}</span>}
-                    <span>· {tx.is_reimbursed ? 'reembolsado' : 'pendente'}</span>
+                    <span>· despesa direta dela</span>
                   </p>
                 </div>
-                <p className="font-bold md:text-right" style={{ color: tx.is_reimbursed ? '#34D399' : '#FBBF24' }}>{brl(Number(tx.amount))}</p>
+                <p className="font-bold md:text-right" style={{ color: '#A78BFA' }}>{brl(Number(tx.amount))}</p>
               </div>
             ))}
+              </section>
+            )}
           </div>
         )}
       </section>

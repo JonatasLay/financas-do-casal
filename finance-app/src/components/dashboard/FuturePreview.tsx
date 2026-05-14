@@ -38,8 +38,8 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
     .filter(isCoupleExpense)
     .reduce((sum, tx) => sum + Number(tx.amount), 0)
 
-  const directNeusaPending = directTransactions
-    .filter(tx => isNeusaExpense(tx) && !tx.is_reimbursed)
+  const directNeusaTotal = directTransactions
+    .filter(isNeusaExpense)
     .reduce((sum, tx) => sum + Number(tx.amount), 0)
 
   const cardBills = creditCards.map(card => ({
@@ -63,8 +63,9 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
 
   const creditTotal = cardBills.reduce((sum, item) => sum + item.total, 0)
   const creditCoupleTotal = cardBills.reduce((sum, item) => sum + item.couple, 0)
-  const neusaTotal = cardBills.reduce((sum, item) => sum + item.neusa, 0) + directTransactions.filter(isNeusaExpense).reduce((sum, tx) => sum + Number(tx.amount), 0)
-  const neusaPending = cardBills.reduce((sum, item) => sum + item.neusaPending, 0) + directNeusaPending
+  const neusaCardTotal = cardBills.reduce((sum, item) => sum + item.neusa, 0)
+  const neusaTotal = neusaCardTotal + directNeusaTotal
+  const neusaPending = cardBills.reduce((sum, item) => sum + item.neusaPending, 0)
   const coupleOutflow = directCoupleExpenses + creditCoupleTotal
   const projectedBalance = income - coupleOutflow
   const monthLabel = format(targetMonth, 'MMMM yyyy', { locale: ptBR })
@@ -127,13 +128,17 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
       </div>
 
       {(neusaTotal > 0 || neusaPending > 0) && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <div className="rounded-xl p-3" style={{ background: 'rgba(244,114,182,0.08)', border: '1px solid rgba(244,114,182,0.18)' }}>
-            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neusa no mes</p>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neusa no mês</p>
             <p className="text-sm font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(neusaTotal)}</p>
           </div>
+          <div className="rounded-xl p-3" style={{ background: 'rgba(244,114,182,0.06)', border: '1px solid rgba(244,114,182,0.16)' }}>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Despesas dela</p>
+            <p className="text-sm font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(directNeusaTotal)}</p>
+          </div>
           <div className="rounded-xl p-3" style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.18)' }}>
-            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>A receber dela</p>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Cartão a receber</p>
             <p className="text-sm font-bold font-mono-nums" style={{ color: neusaPending > 0 ? '#FB923C' : '#94A3B8' }}>{brl(neusaPending)}</p>
           </div>
         </div>
