@@ -464,7 +464,7 @@ export default function DashboardPage() {
     .map(cat => ({
       category: cat,
       total: coupleFinancialTransactions
-        .filter(t => t.category_id === cat.id && t.type !== 'receita' && t.status === 'realizado')
+        .filter(t => t.category_id === cat.id && t.type !== 'receita')
         .reduce((s, t) => s + Number(t.amount), 0),
     }))
     .filter(x => x.total > 0)

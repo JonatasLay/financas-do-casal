@@ -45,15 +45,17 @@ export async function GET(req: NextRequest) {
     const banks = banksRes.data || []
     const bankById = new Map<string, any>(banks.map((bank: any) => [bank.id, bank]))
     const isCreditTx = (tx: any) => bankById.get(tx.bank_id || '')?.type === 'credito'
-    const cashTxs = txs.filter((tx: any) => !isCreditTx(tx))
+    const isCoupleTx = (tx: any) => (tx.responsible_party || 'casal') === 'casal'
+    const coupleTxs = txs.filter(isCoupleTx)
+    const cashTxs = coupleTxs.filter((tx: any) => !isCreditTx(tx))
     const creditInvoiceTxs = (creditTxRes.data || []).filter((tx: any) => {
       const bank = bankById.get(tx.bank_id || '')
-      if (!bank || bank.type !== 'credito' || tx.type === 'receita') return false
+      if (!isCoupleTx(tx) || !bank || bank.type !== 'credito' || tx.type === 'receita') return false
       return isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day, bank.closing_day), now)
     })
 
-    const income = txs.filter((tx: any) => tx.type === 'receita' && tx.status === 'realizado').reduce((s: number, tx: any) => s + Number(tx.amount), 0)
-    const plannedIncome = txs.filter((tx: any) => tx.type === 'receita' && tx.status !== 'realizado').reduce((s: number, tx: any) => s + Number(tx.amount), 0)
+    const income = coupleTxs.filter((tx: any) => tx.type === 'receita' && tx.status === 'realizado').reduce((s: number, tx: any) => s + Number(tx.amount), 0)
+    const plannedIncome = coupleTxs.filter((tx: any) => tx.type === 'receita' && tx.status !== 'realizado').reduce((s: number, tx: any) => s + Number(tx.amount), 0)
     const expenses = cashTxs.filter((tx: any) => tx.type !== 'receita' && tx.status === 'realizado').reduce((s: number, tx: any) => s + Number(tx.amount), 0)
     const plannedExpenses = cashTxs.filter((tx: any) => tx.type !== 'receita' && tx.status !== 'realizado').reduce((s: number, tx: any) => s + Number(tx.amount), 0)
       + creditInvoiceTxs.reduce((s: number, tx: any) => s + Number(tx.amount), 0)

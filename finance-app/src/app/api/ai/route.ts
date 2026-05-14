@@ -283,17 +283,19 @@ async function buildFinancialContext(supabase: any, userId: string): Promise<AIC
   const banks    = banksRes.data || []
   const bankById = new Map<string, any>(banks.map((bank: any) => [bank.id, bank]))
   const isCreditTx = (tx: any) => bankById.get(tx.bank_id || '')?.type === 'credito'
-  const cashTxs = txs.filter((tx: any) => !isCreditTx(tx))
+  const isCoupleTx = (tx: any) => (tx.responsible_party || 'casal') === 'casal'
+  const coupleTxs = txs.filter(isCoupleTx)
+  const cashTxs = coupleTxs.filter((tx: any) => !isCreditTx(tx))
   const creditInvoiceTxs = (creditTxRes.data || []).filter((tx: any) => {
     const bank = bankById.get(tx.bank_id || '')
-    if (!bank || bank.type !== 'credito' || tx.type === 'receita') return false
+    if (!isCoupleTx(tx) || !bank || bank.type !== 'credito' || tx.type === 'receita') return false
     return isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day, bank.closing_day), now)
   })
 
-  const income = txs
+  const income = coupleTxs
     .filter((t: any) => t.type === 'receita' && t.status === 'realizado')
     .reduce((s: number, t: any) => s + Number(t.amount), 0)
-  const plannedIncome = txs
+  const plannedIncome = coupleTxs
     .filter((t: any) => t.type === 'receita' && t.status !== 'realizado')
     .reduce((s: number, t: any) => s + Number(t.amount), 0)
   const expenses = cashTxs
@@ -338,8 +340,8 @@ async function buildFinancialContext(supabase: any, userId: string): Promise<AIC
         .reduce((s: number, tx: any) => s + Number(tx.amount), 0),
     }))
     .filter((bill: any) => bill.amount > 0)
-  const yearTxs = yearTxRes.data || []
-  const annualCreditTxs = annualCreditTxRes.data || []
+  const yearTxs = (yearTxRes.data || []).filter(isCoupleTx)
+  const annualCreditTxs = (annualCreditTxRes.data || []).filter(isCoupleTx)
   const monthlyOverview = Array.from({ length: 12 }, (_, index) => {
     const monthDate = new Date(now.getFullYear(), index, 1)
     const monthStart = format(startOfMonth(monthDate), 'yyyy-MM-dd')
@@ -368,7 +370,7 @@ async function buildFinancialContext(supabase: any, userId: string): Promise<AIC
       projected_balance: monthIncome + monthPlannedIncome - monthDirectExpenses - monthPlannedDirectExpenses - monthCardInvoice,
     }
   })
-  const recentTransactions = (recentTxRes.data || []).map((tx: any) => ({
+  const recentTransactions = (recentTxRes.data || []).filter(isCoupleTx).map((tx: any) => ({
     id: tx.id,
     date: tx.date,
     description: tx.description,
