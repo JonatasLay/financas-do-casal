@@ -130,16 +130,16 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
       {(neusaTotal > 0 || neusaPending > 0) && (
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-xl p-3" style={{ background: 'rgba(244,114,182,0.08)', border: '1px solid rgba(244,114,182,0.18)' }}>
-            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neusa no mês</p>
-            <p className="text-sm font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(neusaTotal)}</p>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neusa cartão</p>
+            <p className="text-sm font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(neusaCardTotal)}</p>
           </div>
           <div className="rounded-xl p-3" style={{ background: 'rgba(244,114,182,0.06)', border: '1px solid rgba(244,114,182,0.16)' }}>
-            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Despesas dela</p>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Despesas diretas</p>
             <p className="text-sm font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(directNeusaTotal)}</p>
           </div>
           <div className="rounded-xl p-3" style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.18)' }}>
-            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Cartão a receber</p>
-            <p className="text-sm font-bold font-mono-nums" style={{ color: neusaPending > 0 ? '#FB923C' : '#94A3B8' }}>{brl(neusaPending)}</p>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Total Neusa</p>
+            <p className="text-sm font-bold font-mono-nums" style={{ color: '#FB923C' }}>{brl(neusaTotal)}</p>
           </div>
         </div>
       )}

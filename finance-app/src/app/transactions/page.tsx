@@ -386,7 +386,7 @@ export default function TransactionsPage() {
   const [filterCategoryId, setFilterCategoryId] = useState('')
   const [filterBankId, setFilterBankId] = useState('')
   const [filterProfileId, setFilterProfileId] = useState('')
-  const [filterResponsible, setFilterResponsible] = useState<ResponsibleParty | ''>('')
+  const [filterResponsible, setFilterResponsible] = useState<ResponsibleParty>('casal')
 
   const fetchData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -487,7 +487,7 @@ export default function TransactionsPage() {
     if (filterCategoryId && tx.category_id !== filterCategoryId) return false
     if (filterBankId && tx.bank_id !== filterBankId) return false
     if (filterProfileId && tx.created_by !== filterProfileId) return false
-    if (filterResponsible && (tx.responsible_party || 'casal') !== filterResponsible) return false
+    if ((tx.responsible_party || 'casal') !== filterResponsible) return false
     return true
   })
 
@@ -516,29 +516,44 @@ export default function TransactionsPage() {
   })
   const cashTransactions = transactions.filter(tx => !isCreditTx(tx))
   const monthFinancialTransactions = [...cashTransactions, ...creditInvoiceDueThisMonth]
+  const selectedTransactions = transactions.filter(t => (t.responsible_party || 'casal') === filterResponsible)
+  const selectedFinancialTransactions = monthFinancialTransactions.filter(t => (t.responsible_party || 'casal') === filterResponsible)
 
-  const income = transactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const plannedIncome = transactions.filter(t => t.type === 'receita' && t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const coupleExpenses = monthFinancialTransactions
-    .filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === 'casal')
-    .reduce((s, t) => s + Number(t.amount), 0)
-  const globalExpenses = coupleExpenses
-  const neusaCardExpenses = creditInvoiceDueThisMonth
-    .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra')
-    .reduce((s, t) => s + Number(t.amount), 0)
-  const neusaDirectExpenses = cashTransactions
-    .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra')
-    .reduce((s, t) => s + Number(t.amount), 0)
-  const neusaExpenses = neusaCardExpenses + neusaDirectExpenses
+  const income = selectedTransactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const plannedIncome = selectedTransactions.filter(t => t.type === 'receita' && t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
   const neusaPending = creditInvoiceDueThisMonth
     .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra' && !t.is_reimbursed)
     .reduce((s, t) => s + Number(t.amount), 0)
-  const balance  = income + plannedIncome - coupleExpenses
+  const selectedDirectExpenses = cashTransactions
+    .filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === filterResponsible)
+    .reduce((s, t) => s + Number(t.amount), 0)
+  const selectedCardExpenses = creditInvoiceDueThisMonth
+    .filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === filterResponsible)
+    .reduce((s, t) => s + Number(t.amount), 0)
+  const selectedExpenses = selectedFinancialTransactions
+    .filter(t => t.type !== 'receita')
+    .reduce((s, t) => s + Number(t.amount), 0)
+  const balance  = income + plannedIncome - selectedExpenses
+  const summaryCards = filterResponsible === 'sogra'
+    ? [
+      { label: 'Receitas Neusa', value: income + plannedIncome, color: '#34D399' },
+      { label: 'Neusa cartão', value: selectedCardExpenses, color: '#FB923C' },
+      { label: 'Despesas diretas', value: selectedDirectExpenses, color: '#F9A8D4' },
+      { label: 'Total Neusa', value: selectedExpenses, color: '#A78BFA' },
+      { label: 'Saldo previsto', value: balance, color: balance >= 0 ? '#34D399' : '#F87171' },
+    ]
+    : [
+      { label: 'Receitas mês', value: income + plannedIncome, color: '#34D399' },
+      { label: 'Desp. diretas', value: selectedDirectExpenses, color: '#818CF8' },
+      { label: 'Fatura cartão', value: selectedCardExpenses, color: '#FBBF24' },
+      { label: 'Total despesas', value: selectedExpenses, color: '#FB923C' },
+      { label: 'Saldo previsto', value: balance, color: balance >= 0 ? '#34D399' : '#F87171' },
+    ]
 
-  const activeFilterCount = [filterType, filterCategoryId, filterBankId, filterProfileId, filterResponsible].filter(Boolean).length
+  const activeFilterCount = [filterType, filterCategoryId, filterBankId, filterProfileId].filter(Boolean).length
 
   const clearFilters = () => {
-    setFilterType(''); setFilterCategoryId(''); setFilterBankId(''); setFilterProfileId(''); setFilterResponsible('')
+    setFilterType(''); setFilterCategoryId(''); setFilterBankId(''); setFilterProfileId('')
   }
 
   return (
@@ -567,16 +582,13 @@ export default function TransactionsPage() {
 
         {/* Summary */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
-          <SummaryChip label="Receitas mês" value={income + plannedIncome} color="#34D399" />
-          <SummaryChip label="Desp. casal" value={coupleExpenses} color="#818CF8" />
-          <SummaryChip label="Neusa total" value={neusaExpenses} color="#F9A8D4" />
-          <SummaryChip label="Total despesas" value={globalExpenses} color="#FB923C" />
-          <SummaryChip label="Saldo previsto" value={balance} color={balance >= 0 ? '#34D399' : '#F87171'} />
+          {summaryCards.map(card => (
+            <SummaryChip key={card.label} label={card.label} value={card.value} color={card.color} />
+          ))}
         </div>
 
-        <div className="grid grid-cols-3 gap-2 rounded-2xl p-1.5" style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="grid grid-cols-2 gap-2 rounded-2xl p-1.5" style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.07)' }}>
           {([
-            { value: '' as const, label: 'Todos' },
             { value: 'casal' as const, label: 'Casal' },
             { value: 'sogra' as const, label: 'Neusa' },
           ]).map(item => {
@@ -594,7 +606,7 @@ export default function TransactionsPage() {
         </div>
         </section>
 
-        {neusaPending > 0 && (
+        {filterResponsible === 'sogra' && neusaPending > 0 && (
           <div className="rounded-2xl px-3 py-2 flex items-center justify-between gap-3"
             style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.16)' }}>
             <span className="text-xs font-medium" style={{ color: '#FBBF24' }}>Neusa no cartão a reembolsar neste mês</span>
@@ -691,15 +703,6 @@ export default function TransactionsPage() {
                 </div>
               </div>
             )}
-
-            <div>
-              <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Responsavel</p>
-              <div className="flex flex-wrap gap-2">
-                <FilterBtn active={filterResponsible === ''} onClick={() => setFilterResponsible('')}>Todos</FilterBtn>
-                <FilterBtn active={filterResponsible === 'casal'} onClick={() => setFilterResponsible('casal')}>Casal</FilterBtn>
-                <FilterBtn active={filterResponsible === 'sogra'} onClick={() => setFilterResponsible('sogra')}>Neusa</FilterBtn>
-              </div>
-            </div>
 
             {profiles.length > 1 && (
               <div>
