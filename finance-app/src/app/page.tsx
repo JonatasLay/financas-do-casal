@@ -35,15 +35,16 @@ const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', curren
 
 type DetailKind = 'income' | 'expenses' | 'balance' | 'planned' | 'neusa' | 'future-income' | 'future-couple' | 'future-expenses' | 'future-card'
 
-function DetailModal({ open, title, subtitle, transactions, onClose }: {
+function DetailModal({ open, title, subtitle, transactions, totalOverride, onClose }: {
   open: boolean
   title: string
   subtitle?: string
   transactions: Transaction[]
+  totalOverride?: number
   onClose: () => void
 }) {
   if (!open) return null
-  const total = transactions.reduce((sum, tx) => sum + Number(tx.amount), 0)
+  const total = totalOverride ?? transactions.reduce((sum, tx) => sum + (tx.type === 'receita' ? Number(tx.amount) : -Number(tx.amount)), 0)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
@@ -444,10 +445,10 @@ export default function DashboardPage() {
   const futureDirectCoupleExpenses = nextMonthTransactions.filter(t => t.type !== 'receita' && isCouple(t) && !isCreditTx(t))
   const futureCoupleTransactions = [...futureDirectCoupleExpenses, ...futureCreditInvoices.filter(isCouple)]
 
-  const details: Record<DetailKind, { title: string; subtitle: string; transactions: Transaction[] }> = {
+  const details: Record<DetailKind, { title: string; subtitle: string; transactions: Transaction[]; total?: number }> = {
     income: { title: 'Receitas do mês', subtitle: 'Recebidas e previstas/agendadas no mês selecionado', transactions: visibleIncomeTransactions },
     expenses: { title: 'Despesas diretas do casal', subtitle: 'Saídas de caixa realizadas, pendentes e agendadas, sem cartão de crédito', transactions: visibleCashTransactions.filter(t => t.type !== 'receita') },
-    balance: { title: 'Composição do caixa previsto', subtitle: `Contas ${brl(cashBalance)} + resultado do mês ${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)} = ${brl(projectedCashBalance)}`, transactions: [...visibleIncomeTransactions, ...visibleCashTransactions.filter(t => t.type !== 'receita'), ...visibleCreditInvoices] },
+    balance: { title: 'Composição do caixa previsto', subtitle: `Contas ${brl(cashBalance)} + resultado do mês ${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)} = ${brl(projectedCashBalance)}`, transactions: [...visibleIncomeTransactions, ...visibleCashTransactions.filter(t => t.type !== 'receita'), ...visibleCreditInvoices], total: projectedCashBalance },
     planned: { title: 'Fatura cartão', subtitle: 'Compras de cartão que vencem no mês selecionado', transactions: visibleCreditInvoices },
     neusa: { title: 'Neusa no mês', subtitle: `Cartão ${brl(neusaCardTotal)} · a receber ${brl(neusaReceivable)}`, transactions: neusaTransactions },
     'future-income': { title: 'Receber na prévia', subtitle: 'Receitas do próximo mês selecionado na prévia', transactions: nextMonthTransactions.filter(t => t.type === 'receita') },
@@ -616,6 +617,7 @@ export default function DashboardPage() {
         title={detailKind ? details[detailKind].title : ''}
         subtitle={detailKind ? details[detailKind].subtitle : ''}
         transactions={detailKind ? details[detailKind].transactions : []}
+        totalOverride={detailKind ? details[detailKind].total : undefined}
         onClose={() => setDetailKind(null)}
       />
     </AppLayout>

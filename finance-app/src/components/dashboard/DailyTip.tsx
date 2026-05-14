@@ -50,8 +50,8 @@ export function DailyTip({ month }: { month?: Date }) {
   const [tip, setTip]       = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const cacheKey = month
-    ? `daily-tip-${month.getFullYear()}-${month.getMonth() + 1}`
-    : 'daily-tip'
+    ? `daily-tip-v2-${month.getFullYear()}-${month.getMonth() + 1}`
+    : 'daily-tip-v2'
 
   const fetchTip = async () => {
     setLoading(true)

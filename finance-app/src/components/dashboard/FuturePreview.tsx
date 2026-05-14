@@ -66,7 +66,7 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
   const neusaTotal = cardBills.reduce((sum, item) => sum + item.neusa, 0) + directTransactions.filter(isNeusaExpense).reduce((sum, tx) => sum + Number(tx.amount), 0)
   const neusaPending = cardBills.reduce((sum, item) => sum + item.neusaPending, 0) + directNeusaPending
   const coupleOutflow = directCoupleExpenses + creditCoupleTotal
-  const projectedBalance = income - coupleOutflow - neusaPending
+  const projectedBalance = income - coupleOutflow
   const monthLabel = format(targetMonth, 'MMMM yyyy', { locale: ptBR })
 
   if (loading) return <div className="skeleton h-40 rounded-2xl" />
