@@ -100,6 +100,7 @@ export interface AIContext {
   planned_month_income?: number
   planned_month_expenses?: number
   projected_month_balance?: number
+  projected_cash_balance?: number
   cash_balance?: number
   bank_balances?: { name: string; type: string; balance: number }[]
   credit_card_bills?: { name: string; due_day: number | null; closing_day: number | null; amount: number }[]

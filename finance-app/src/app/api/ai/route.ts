@@ -386,6 +386,7 @@ async function buildFinancialContext(supabase: any, userId: string): Promise<AIC
     planned_month_income: plannedIncome,
     planned_month_expenses: plannedExpenses,
     projected_month_balance: income + plannedIncome - expenses - plannedExpenses,
+    projected_cash_balance: cashBalance + income + plannedIncome - expenses - plannedExpenses,
     cash_balance: cashBalance,
     bank_balances: bankBalances,
     credit_card_bills: creditCardBills,

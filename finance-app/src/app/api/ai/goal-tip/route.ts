@@ -71,6 +71,7 @@ export async function GET(req: NextRequest) {
       planned_month_income: plannedIncome,
       planned_month_expenses: plannedExpenses,
       projected_month_balance: income + plannedIncome - expenses - plannedExpenses,
+      projected_cash_balance: bankBalances.reduce((s: number, bank: any) => s + bank.balance, 0) + income + plannedIncome - expenses - plannedExpenses,
       cash_balance: bankBalances.reduce((s: number, bank: any) => s + bank.balance, 0),
       bank_balances: bankBalances,
       credit_card_bills: banks.filter((bank: any) => bank.type === 'credito').map((bank: any) => ({

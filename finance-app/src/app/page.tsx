@@ -192,9 +192,9 @@ function QuickStats({ income, expenses, balance, prevBalance, loading }: {
   )
 }
 
-function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedCashExpenses, plannedCreditInvoices, balance, projectedBalance, prevBalance, neusaTotal, neusaReceivable, loading, onOpen }: {
+function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedCashExpenses, plannedCreditInvoices, balance, projectedBalance, cashBalance, projectedCashBalance, prevBalance, neusaTotal, neusaReceivable, loading, onOpen }: {
   income: number; plannedIncome: number; expenses: number; plannedCashExpenses: number; plannedCreditInvoices: number
-  balance: number; projectedBalance: number; prevBalance: number
+  balance: number; projectedBalance: number; cashBalance: number; projectedCashBalance: number; prevBalance: number
   neusaTotal: number; neusaReceivable: number; loading: boolean; onOpen: (kind: DetailKind) => void
 }) {
   const balanceDelta = prevBalance !== 0 ? ((projectedBalance - prevBalance) / Math.abs(prevBalance)) * 100 : 0
@@ -205,7 +205,7 @@ function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedCashExpe
     { kind: 'income' as const, label: 'Receitas', value: totalIncome, detail: `${brl(income)} recebido · ${brl(plannedIncome)} previsto`, color: '#34D399' },
     { kind: 'expenses' as const, label: 'Despesas diretas', value: directExpenses, detail: `${brl(expenses)} pago · ${brl(plannedCashExpenses)} previsto`, color: '#F87171' },
     { kind: 'planned' as const, label: 'Fatura cartão', value: plannedCreditInvoices, detail: 'compras que vencem no mes', color: '#FBBF24' },
-    { kind: 'balance' as const, label: 'Saldo', value: projectedBalance, detail: `realizado ${brl(balance)}`, color: projectedBalance >= 0 ? '#818CF8' : '#F87171' },
+    { kind: 'balance' as const, label: 'Caixa previsto', value: projectedCashBalance, detail: `contas ${brl(cashBalance)} | mes ${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)}`, color: projectedCashBalance >= 0 ? '#818CF8' : '#F87171' },
     { kind: 'neusa' as const, label: 'Neusa', value: neusaTotal, detail: neusaReceivable > 0 ? `${brl(neusaReceivable)} a receber` : 'sem pendencia', color: '#F9A8D4' },
   ]
 
@@ -216,8 +216,8 @@ function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedCashExpe
       style={{ background: 'linear-gradient(135deg, rgba(129,140,248,0.08), rgba(244,114,182,0.05))', border: '1px solid rgba(129,140,248,0.18)' }}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Saldo previsto do mes</p>
-          <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>Receitas previstas menos despesas, faturas e compromissos do mes</p>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Caixa previsto no fim do mês</p>
+          <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>Saldo atual das contas + resultado previsto do mês</p>
         </div>
         {prevBalance !== 0 && (
           <div className="flex items-center gap-1">
@@ -230,11 +230,11 @@ function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedCashExpe
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <p className="text-4xl font-bold font-mono-nums" style={{ color: projectedBalance >= 0 ? '#34D399' : '#F87171' }}>
-          {projectedBalance >= 0 ? '+' : ''}{brl(projectedBalance)}
+        <p className="text-4xl font-bold font-mono-nums" style={{ color: projectedCashBalance >= 0 ? '#34D399' : '#F87171' }}>
+          {projectedCashBalance >= 0 ? '+' : ''}{brl(projectedCashBalance)}
         </p>
         <p className="text-xs pb-1" style={{ color: '#64748B' }}>
-          realizado agora: <span className="font-bold" style={{ color: balance >= 0 ? '#34D399' : '#F87171' }}>{balance >= 0 ? '+' : ''}{brl(balance)}</span>
+          resultado do mês: <span className="font-bold" style={{ color: projectedBalance >= 0 ? '#34D399' : '#F87171' }}>{projectedBalance >= 0 ? '+' : ''}{brl(projectedBalance)}</span>
         </p>
       </div>
 
@@ -426,6 +426,8 @@ export default function DashboardPage() {
   const pending = plannedExpenses
   const balance  = income - expenses
   const projectedBalance = income + plannedIncome - expenses - plannedExpenses
+  const cashBalance = banks.filter(bank => bank.type !== 'credito').reduce((sum, bank) => sum + Number(bank.current_balance || 0), 0)
+  const projectedCashBalance = cashBalance + projectedBalance
   const neusaTransactions = financialTransactions.filter(isNeusa)
   const neusaTotal = neusaTransactions.reduce((s, t) => s + Number(t.amount), 0)
   const neusaCardTotal = creditInvoiceDueThisMonth.filter(isNeusa).reduce((s, t) => s + Number(t.amount), 0)
@@ -445,7 +447,7 @@ export default function DashboardPage() {
   const details: Record<DetailKind, { title: string; subtitle: string; transactions: Transaction[] }> = {
     income: { title: 'Receitas do mês', subtitle: 'Recebidas e previstas/agendadas no mês selecionado', transactions: visibleIncomeTransactions },
     expenses: { title: 'Despesas diretas do casal', subtitle: 'Saídas de caixa realizadas, pendentes e agendadas, sem cartão de crédito', transactions: visibleCashTransactions.filter(t => t.type !== 'receita') },
-    balance: { title: 'Composição do saldo', subtitle: `Realizado ${brl(balance)} · Projetado ${brl(projectedBalance)}`, transactions: [...visibleIncomeTransactions, ...visibleCashTransactions.filter(t => t.type !== 'receita'), ...visibleCreditInvoices] },
+    balance: { title: 'Composição do caixa previsto', subtitle: `Contas ${brl(cashBalance)} + resultado do mês ${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)} = ${brl(projectedCashBalance)}`, transactions: [...visibleIncomeTransactions, ...visibleCashTransactions.filter(t => t.type !== 'receita'), ...visibleCreditInvoices] },
     planned: { title: 'Fatura cartão', subtitle: 'Compras de cartão que vencem no mês selecionado', transactions: visibleCreditInvoices },
     neusa: { title: 'Neusa no mês', subtitle: `Cartão ${brl(neusaCardTotal)} · a receber ${brl(neusaReceivable)}`, transactions: neusaTransactions },
     'future-income': { title: 'Receber na prévia', subtitle: 'Receitas do próximo mês selecionado na prévia', transactions: nextMonthTransactions.filter(t => t.type === 'receita') },
@@ -531,7 +533,7 @@ export default function DashboardPage() {
           <motion.div {...fadeUp(0.068)}>
             <FinancialAlerts
               projectedBalance={projectedBalance}
-              cashBalance={banks.filter(bank => bank.type !== 'credito').reduce((sum, bank) => sum + Number(bank.current_balance || 0), 0)}
+              cashBalance={cashBalance}
               neusaReceivable={neusaReceivable}
               budgets={budgets}
               transactions={coupleFinancialTransactions}
@@ -555,6 +557,8 @@ export default function DashboardPage() {
               plannedCreditInvoices={plannedCreditInvoices}
               balance={balance}
               projectedBalance={projectedBalance}
+              cashBalance={cashBalance}
+              projectedCashBalance={projectedCashBalance}
               prevBalance={prevBalance}
               neusaTotal={neusaTotal}
               neusaReceivable={neusaReceivable}

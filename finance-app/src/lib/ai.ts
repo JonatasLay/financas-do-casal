@@ -39,6 +39,9 @@ export function buildSystemPrompt(context: AIContext): string {
 
   const names = context.profiles.map(p => p.name).join(' e ')
   const patrimony = context.total_patrimony ? brl(context.total_patrimony) : 'nao calculado'
+  const projectedMonth = context.projected_month_balance ?? context.current_month_balance
+  const cashBalance = context.cash_balance || 0
+  const projectedCash = context.projected_cash_balance ?? (cashBalance + projectedMonth)
 
   return `Voce e a Fina, a assessora financeira, contabil e operacional do casal ${names}. Aja como uma CFO familiar: organize a casa, proteja o caixa, reduza decisoes impulsivas, crie estrategia e provoque o casal quando o padrao de gasto ameacar os objetivos.
 
@@ -48,8 +51,9 @@ DADOS FINANCEIROS REAIS
 - Despesas diretas pagas no mes: ${brl(context.current_month_expenses)}
 - Despesas diretas/faturas previstas no mes: ${brl(context.planned_month_expenses || 0)}
 - Saldo realizado do mes: ${brl(context.current_month_balance)}
-- Saldo projetado do mes: ${brl(context.projected_month_balance ?? context.current_month_balance)}
-- Saldo atual em contas: ${brl(context.cash_balance || 0)}${bankBalances ? ` (${bankBalances})` : ''}
+- Resultado projetado do mes: ${brl(projectedMonth)}
+- Saldo atual em contas: ${brl(cashBalance)}${bankBalances ? ` (${bankBalances})` : ''}
+- Caixa previsto no fim do mes (saldo atual em contas + resultado projetado): ${brl(projectedCash)}
 - Faturas previstas: ${creditBills || 'Sem faturas previstas no mes'}
 - Visao mes a mes do ano:
 ${monthlyOverview || 'Sem visao anual disponivel'}
@@ -64,10 +68,11 @@ ${recentTransactions || 'Sem lancamentos recentes disponiveis'}
 REGRAS RIGIDAS
 1. Escopo: responda somente sobre financas pessoais, orcamento familiar, compras, dividas, cartoes, metas, patrimonio, investimentos, planejamento e acoes dentro do app.
 2. Dados: nunca invente numeros. Use os valores acima. Se perguntar sobre um mes especifico, procure na visao mes a mes antes de responder.
-3. Acoes: o sistema consegue executar comandos explicitos de lancar/remover antes da sua resposta. Se a acao ja foi executada, confirme e explique o impacto. Se voce ainda estiver apenas conversando e faltar dado ou houver ambiguidade, peca o minimo necessario e diga "posso lancar/remover para voce se confirmar". Nunca diga que nao consegue executar acoes no app.
-4. Compras: compare saldo projetado, saldo em contas, fatura atual/futura, reserva de emergencia, impacto nas metas e risco comportamental. Termine com uma recomendacao clara: comprar a vista, parcelar em ate X, adiar, ou nao comprar agora.
-5. Investimentos: primeiro reserva de emergencia e fluxo de caixa. Depois fale em categorias, percentuais e riscos. Nao prometa rentabilidade. Para decisoes relevantes, recomende validar com profissional certificado.
-6. Postura: seja consultiva e firme. Se o casal estiver gastando sem controle, fale com carinho, mas sem passar pano. Transforme dados em plano: acao hoje, ajuste no mes, estrategia em 90 dias.
+3. Caixa: nunca avalie compra, investimento ou risco olhando apenas o resultado do mes ou apenas o saldo em contas. Cruze sempre saldo atual em contas + resultado projetado do mes = caixa previsto no fim do mes.
+4. Acoes: o sistema consegue executar comandos explicitos de lancar/remover antes da sua resposta. Se a acao ja foi executada, confirme e explique o impacto. Se voce ainda estiver apenas conversando e faltar dado ou houver ambiguidade, peca o minimo necessario e diga "posso lancar/remover para voce se confirmar". Nunca diga que nao consegue executar acoes no app.
+5. Compras: compare caixa previsto no fim do mes, resultado projetado do mes, saldo em contas, fatura atual/futura, reserva de emergencia, impacto nas metas e risco comportamental. Termine com uma recomendacao clara: comprar a vista, parcelar em ate X, adiar, ou nao comprar agora.
+6. Investimentos: primeiro reserva de emergencia e fluxo de caixa. Depois fale em categorias, percentuais e riscos. Nao prometa rentabilidade. Para decisoes relevantes, recomende validar com profissional certificado.
+7. Postura: seja consultiva e firme. Se o casal estiver gastando sem controle, fale com carinho, mas sem passar pano. Transforme dados em plano: acao hoje, ajuste no mes, estrategia em 90 dias.
 
 JEITO DE RESPONDER
 - Amigavel, pratica, direta, com raciocinio de especialista financeiro-contabil.
@@ -99,7 +104,7 @@ export async function generateDailyTip(context: AIContext): Promise<string> {
       role: 'user',
       content: `Gere a Dica da Fina para o dashboard do mes selecionado.
 Prioridade de raciocinio:
-1. Comece pelo saldo projetado do mes, nao pelo saldo atual em conta.
+1. Comece pelo caixa previsto no fim do mes, calculado como saldo atual em contas + resultado projetado do mes.
 2. Considere receitas previstas/agendadas, despesas diretas realizadas/agendadas, faturas de cartao, saldo em contas, metas, poupanca e investimentos.
 3. Se o saldo em conta estiver apertado, explique que e uma tensao de caixa atual, mas diferencie do resultado previsto do mes.
 4. Traga uma orientacao pratica para hoje e uma provocacao curta se houver risco de gasto impulsivo.
@@ -117,11 +122,12 @@ export async function generateSavingsInsight(context: AIContext): Promise<string
     : 0
   const estimatedYearYield = totalSaved * weightedRate / 100
   const projectedBalance = context.projected_month_balance ?? context.current_month_balance
+  const projectedCash = context.projected_cash_balance ?? ((context.cash_balance || 0) + projectedBalance)
   const monthlyOutflow = Math.max(0, context.current_month_expenses + (context.planned_month_expenses || 0))
   const emergencyMin = monthlyOutflow * 3
   const emergencyIdeal = monthlyOutflow * 6
   const emergencyCoverage = monthlyOutflow > 0 ? totalSaved / monthlyOutflow : 0
-  const action = projectedBalance < 0
+  const action = projectedCash < 0
     ? 'Pause novos aportes ate o fluxo do mes ficar positivo; preservar caixa agora vale mais que aumentar reserva.'
     : emergencyCoverage < 3
       ? `Priorize reserva: faltam ${brl(Math.max(0, emergencyMin - totalSaved))} para 3 meses de seguranca.`
@@ -145,6 +151,7 @@ export async function generateGoalInsight(context: AIContext, goal: {
 }): Promise<string> {
   const remaining = Math.max(0, goal.target - goal.current)
   const projectedBalance = context.projected_month_balance ?? context.current_month_balance
+  const projectedCash = context.projected_cash_balance ?? ((context.cash_balance || 0) + projectedBalance)
   const now = new Date()
   const deadline = goal.deadline ? new Date(`${goal.deadline}T12:00:00`) : null
   const monthsToDeadline = deadline
@@ -166,16 +173,16 @@ export async function generateGoalInsight(context: AIContext, goal: {
         ? `No ritmo atual (${brl(goal.monthly)}/mes), levaria ~${monthsAtCurrent} meses; o prazo pede ~${brl(requiredMonthly)}/mes.`
         : `No ritmo atual (${brl(goal.monthly)}/mes), a meta fica viavel em ~${monthsAtCurrent} meses.`
 
-  const cashWarning = projectedBalance <= 0
-    ? `Fluxo do mes esta negativo (${brl(projectedBalance)}). Nao force aporte agora sem receita confirmada.`
-    : requiredMonthly > projectedBalance
-      ? `Aporte necessario (${brl(requiredMonthly)}/mes) passa do saldo projetado (${brl(projectedBalance)}). Ajuste prazo ou valor.`
-      : `Saldo projetado do mes (${brl(projectedBalance)}) comporta a meta se o aporte for tratado como prioridade.`
+  const cashWarning = projectedCash <= 0
+    ? `Caixa previsto no fim do mes esta negativo (${brl(projectedCash)}). Nao force aporte agora sem receita confirmada.`
+    : requiredMonthly > projectedCash
+      ? `Aporte necessario (${brl(requiredMonthly)}/mes) passa do caixa previsto (${brl(projectedCash)}). Ajuste prazo ou valor.`
+      : `Caixa previsto (${brl(projectedCash)}) comporta a meta se o aporte for tratado como prioridade.`
 
-  const recommendation = projectedBalance <= 0
+  const recommendation = projectedCash <= 0
     ? 'Prioridade: estabilizar o mes antes de aportar. Quando a receita entrar, separe o aporte no mesmo dia.'
     : goal.monthly <= 0
-      ? `Defina uma contribuicao inicial de ate ${brl(Math.min(requiredMonthly, projectedBalance))}/mes e reavalie depois da proxima receita.`
+      ? `Defina uma contribuicao inicial de ate ${brl(Math.min(requiredMonthly, projectedCash))}/mes e reavalie depois da proxima receita.`
       : monthsToDeadline && monthsAtCurrent && monthsAtCurrent > monthsToDeadline
         ? `Caminhos: aumentar para ${brl(requiredMonthly)}/mes, reduzir a meta ou empurrar o prazo.`
         : 'Mantenha aporte automatico mensal e acompanhe se as faturas nao roubam esse dinheiro.'

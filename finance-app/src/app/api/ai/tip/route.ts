@@ -100,6 +100,7 @@ export async function GET(req: NextRequest) {
       planned_month_income: plannedIncome,
       planned_month_expenses: plannedExpenses,
       projected_month_balance: projectedBalance,
+      projected_cash_balance: bankBalances.reduce((s: number, b: any) => s + b.balance, 0) + projectedBalance,
       cash_balance: bankBalances.reduce((s: number, b: any) => s + b.balance, 0),
       bank_balances: bankBalances,
       credit_card_bills: banks
