@@ -519,17 +519,17 @@ export default function TransactionsPage() {
 
   const income = transactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
   const plannedIncome = transactions.filter(t => t.type === 'receita' && t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const globalExpenses = monthFinancialTransactions.filter(t => t.type !== 'receita').reduce((s, t) => s + Number(t.amount), 0)
   const coupleExpenses = monthFinancialTransactions
     .filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === 'casal')
     .reduce((s, t) => s + Number(t.amount), 0)
+  const globalExpenses = coupleExpenses
   const neusaExpenses = monthFinancialTransactions
     .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra')
     .reduce((s, t) => s + Number(t.amount), 0)
   const neusaPending = monthFinancialTransactions
     .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra' && !t.is_reimbursed)
     .reduce((s, t) => s + Number(t.amount), 0)
-  const balance  = income + plannedIncome - coupleExpenses - neusaPending
+  const balance  = income + plannedIncome - coupleExpenses
 
   const activeFilterCount = [filterType, filterCategoryId, filterBankId, filterProfileId, filterResponsible].filter(Boolean).length
 

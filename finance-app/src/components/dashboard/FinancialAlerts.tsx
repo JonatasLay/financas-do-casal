@@ -74,11 +74,14 @@ export function FinancialAlerts({
   }
 
   if (cashBalance < Math.max(creditInvoiceTotal, 0)) {
+    const monthPositive = projectedBalance >= 0
     alerts.push({
       key: 'cash-pressure',
-      title: 'Atenção ao caixa atual',
-      detail: `Contas somam ${brl(cashBalance)} e faturas previstas somam ${brl(creditInvoiceTotal)}.`,
-      tone: 'warning',
+      title: monthPositive ? 'Caixa atual apertado, mas mês projeta positivo' : 'Atenção ao caixa atual',
+      detail: monthPositive
+        ? `Hoje as contas somam ${brl(cashBalance)}, abaixo das faturas de ${brl(creditInvoiceTotal)}, mas o saldo previsto do mês é ${brl(projectedBalance)}. Confirme as receitas antes de novas compras.`
+        : `Contas somam ${brl(cashBalance)}, faturas previstas somam ${brl(creditInvoiceTotal)} e o mês projeta ${brl(projectedBalance)}.`,
+      tone: monthPositive ? 'info' : 'warning',
       icon: <CalendarClock className="w-4 h-4" />,
     })
   }

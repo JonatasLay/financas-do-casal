@@ -528,6 +528,19 @@ export default function DashboardPage() {
             <DailyTip month={currentDate} />
           </motion.div>
 
+          <motion.div {...fadeUp(0.068)}>
+            <FinancialAlerts
+              projectedBalance={projectedBalance}
+              cashBalance={banks.filter(bank => bank.type !== 'credito').reduce((sum, bank) => sum + Number(bank.current_balance || 0), 0)}
+              neusaReceivable={neusaReceivable}
+              budgets={budgets}
+              transactions={coupleFinancialTransactions}
+              creditInvoiceTotal={cardInvoiceTotal}
+              selectedMonth={currentDate}
+              loading={loading}
+            />
+          </motion.div>
+
           <motion.div {...fadeUp(0.07)}>
             <AccountBalancesCard banks={banks} loading={loading} />
           </motion.div>
@@ -551,19 +564,6 @@ export default function DashboardPage() {
           </motion.div>
 
           {/* ── Row 4.5: Future preview ── */}
-          <motion.div {...fadeUp(0.10)}>
-            <FinancialAlerts
-              projectedBalance={projectedBalance}
-              cashBalance={banks.filter(bank => bank.type !== 'credito').reduce((sum, bank) => sum + Number(bank.current_balance || 0), 0)}
-              neusaReceivable={neusaReceivable}
-              budgets={budgets}
-              transactions={coupleFinancialTransactions}
-              creditInvoiceTotal={cardInvoiceTotal}
-              selectedMonth={currentDate}
-              loading={loading}
-            />
-          </motion.div>
-
           <motion.div {...fadeUp(0.135)}>
             <FuturePreview
               targetMonth={addMonths(currentDate, 1)}

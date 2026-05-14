@@ -3,6 +3,49 @@
 import { useEffect, useState } from 'react'
 import { Sparkles, RefreshCw } from 'lucide-react'
 
+function renderInlineMarkdown(text: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index} style={{ color: '#C7D2FE' }}>{part.slice(2, -2)}</strong>
+    }
+    return <span key={index}>{part}</span>
+  })
+}
+
+function formatTipText(tip: string) {
+  const cleaned = tip
+    .replace(/\\n/g, '\n')
+    .replace(/\s*•\s*/g, '\n• ')
+    .replace(/\s*-\s+\*\*/g, '\n- **')
+    .replace(/^#+\s*/gm, '')
+    .trim()
+
+  const lines = cleaned
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean)
+
+  if (lines.length <= 1) {
+    return <p className="text-sm leading-relaxed" style={{ color: '#94A3B8' }}>{renderInlineMarkdown(cleaned)}</p>
+  }
+
+  return (
+    <div className="space-y-2">
+      {lines.map((line, index) => {
+        const isBullet = /^[-•]/.test(line)
+        const text = line.replace(/^[-•]\s*/, '')
+        return (
+          <div key={index} className={isBullet ? 'flex gap-2 text-sm leading-relaxed' : 'text-sm leading-relaxed'}
+            style={{ color: '#94A3B8' }}>
+            {isBullet && <span className="mt-0.5" style={{ color: '#818CF8' }}>•</span>}
+            <span>{renderInlineMarkdown(text)}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function DailyTip({ month }: { month?: Date }) {
   const [tip, setTip]       = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -47,7 +90,7 @@ export function DailyTip({ month }: { month?: Date }) {
             <div className="skeleton h-3 w-3/4 rounded" />
           </div>
         ) : (
-          <p className="text-sm leading-relaxed" style={{ color: '#94A3B8' }}>{tip}</p>
+          formatTipText(tip || '')
         )}
       </div>
       {!loading && (
