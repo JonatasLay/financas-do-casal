@@ -4,9 +4,9 @@ export const maxDuration = 30
 
 import { createClient } from '@/lib/supabase/server'
 import { chatWithFina, analyzePurchase, analyzeInvestments } from '@/lib/ai'
-import { AIContext, AIMessage } from '@/types'
-import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, addMonths, subDays } from 'date-fns'
-import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
+import { AIMessage } from '@/types'
+import { format, subDays } from 'date-fns'
+import { buildFinancialContext as buildSharedFinancialContext } from '@/lib/server/financial-context'
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     const { messages, mode, purchaseItem, purchasePrice, investmentQuestion } = await req.json()
     const allMessages = (messages as AIMessage[] | undefined) || []
-    const context = await buildFinancialContext(supabase, user.id)
+    const context = await buildSharedFinancialContext(supabase, user.id)
     const lastMessage = allMessages.filter(m => m.role === 'user').at(-1)?.content || ''
     if (!mode || mode === 'chat') {
       const actionText = resolveActionTextFromConversation(allMessages, lastMessage)
@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Erro interno. Tente novamente.' }, { status: 500 })
   }
 }
-
 function parseMoney(text: string) {
   const match = text.match(/[-+]?\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:[,.]\d{1,2})?|\d+)/i)
   if (!match) return 0
@@ -129,6 +128,7 @@ function parseStructuredTransaction(raw: string) {
 
 async function tryHandleTransactionAction(supabase: any, userId: string, raw: string) {
   const text = raw.toLowerCase()
+  const confirmedAction = raw.includes('[CONFIRMAR_LANCAMENTO]')
   const wantsDelete = /\b(apague|apaga|remova|remove|exclua|excluir|delete)\b/.test(text)
   const wantsLaunch = /\b(lance|lan[cç]a|lan[cç]ar|registre|adicione|coloque)\b/.test(text)
   if (wantsDelete) return tryDeleteTransactionFromMessage(supabase, userId, raw)
@@ -152,11 +152,8 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
   const type = /\b(recebi|receita|ganhei|sal[aá]rio|pagamento|trabalho)\b/.test(text) ? 'receita' : 'despesa'
   const bankSearchText = `${text} ${structured.bank || ''}`.toLowerCase()
   const categorySearchText = `${text} ${structured.category || ''}`.toLowerCase()
-  const bank = banks.find((b: any) => bankSearchText.includes(String(b.name).toLowerCase()))
-    || banks.find((b: any) => text.includes('cartao') || text.includes('cartão') ? b.type === 'credito' : false)
-    || null
+  const bank = banks.find((b: any) => bankSearchText.includes(String(b.name).toLowerCase())) || null
   const category = categories.find((c: any) => c.type !== (type === 'receita' ? 'despesa' : 'receita') && categorySearchText.includes(String(c.name).toLowerCase()))
-    || categories.find((c: any) => c.type !== (type === 'receita' ? 'despesa' : 'receita'))
     || null
 
   const transactionType = structured.type === 'receita' || structured.type === 'despesa' ? structured.type : type
@@ -174,6 +171,26 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
     ? format(subDays(new Date(), 1), 'yyyy-MM-dd')
     : format(new Date(), 'yyyy-MM-dd'))
 
+  if ((text.includes('cartao') || text.includes('cartão')) && !bank) {
+    return 'Qual cartão devo usar? Diga o nome exato, por exemplo: "Magazine Luiza" ou "Cartão BB".'
+  }
+
+  if (!confirmedAction) {
+    return [
+      '[CONFIRMAR_LANCAMENTO]',
+      'Revise antes de eu gravar:',
+      `- Descrição: ${description}`,
+      `- Tipo: ${transactionType === 'receita' ? 'receita' : 'despesa'}`,
+      `- Valor: ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+      `- Data: ${date.split('-').reverse().join('/')}`,
+      `- Conta/cartão: ${bank?.name || 'não informado'}`,
+      `- Categoria: ${category?.name || 'sem categoria'}`,
+      `- Responsável: ${text.includes('neusa') ? 'Neusa' : 'casal'}`,
+      '',
+      'Posso confirmar este lançamento? Responda "sim" para gravar.',
+    ].join('\n')
+  }
+
   const { error } = await supabase.from('transactions').insert({
     household_id: profile.household_id,
     created_by: profile.id,
@@ -188,6 +205,7 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
     is_recurring: false,
     responsible_party: text.includes('neusa') ? 'sogra' : 'casal',
     is_reimbursed: false,
+    affects_household_cash: !text.includes('neusa') || bank?.type === 'credito',
     payment_method: paymentMethod,
   })
 
@@ -195,7 +213,7 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
     console.error('AI transaction insert error:', error)
     return 'Tentei lançar, mas não consegui gravar com segurança. Revise valor, data, conta e categoria, e tente novamente.'
   }
-  return `Lançado com sucesso: ${description}, ${type === 'receita' ? 'receita' : 'despesa'} de ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}${bank ? ` em ${bank.name}` : ''}.`
+  return `Lançado com sucesso: ${description}, ${transactionType === 'receita' ? 'receita' : 'despesa'} de ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}${bank ? ` em ${bank.name}` : ''}.`
 }
 
 async function tryDeleteTransactionFromMessage(supabase: any, userId: string, raw: string) {
@@ -203,6 +221,18 @@ async function tryDeleteTransactionFromMessage(supabase: any, userId: string, ra
   const amount = parseMoney(raw)
   const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single()
   if (!profile?.household_id) return 'Nao encontrei seu perfil para remover o lancamento.'
+  const confirmedId = raw.match(/\[EXCLUIR_ID:([0-9a-f-]+)\]/i)?.[1]
+
+  if (confirmedId) {
+    const { data: confirmedTx } = await supabase
+      .from('transactions')
+      .select('id, date, description, amount, type, status, recurring_group_id')
+      .eq('household_id', profile.household_id)
+      .eq('id', confirmedId)
+      .single()
+    if (!confirmedTx) return 'Nao encontrei mais esse lancamento. Ele pode ter sido removido em outra tela.'
+    return deleteMatchedTransaction(supabase, confirmedTx, text)
+  }
 
   const search = raw
     .replace(/(?:apague|apaga|remova|remove|exclua|excluir|delete)\s*/i, '')
@@ -236,6 +266,18 @@ async function tryDeleteTransactionFromMessage(supabase: any, userId: string, ra
   }
 
   const tx = matches[0]
+  return [
+    `[EXCLUIR_ID:${tx.id}]`,
+    'Revise antes de eu excluir:',
+    `- Descricao: ${tx.description}`,
+    `- Valor: ${Number(tx.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+    `- Data: ${tx.date.split('-').reverse().join('/')}`,
+    '',
+    'Posso confirmar? Responda "sim, exclua" para remover.',
+  ].join('\n')
+}
+
+async function deleteMatchedTransaction(supabase: any, tx: any, text: string) {
   const removeFutureSeries = tx.recurring_group_id && /\b(recorrente|recorrencia|recorrencias|futuros|proximos)\b/.test(text)
   const deleteQuery = removeFutureSeries
     ? supabase.from('transactions').delete().eq('recurring_group_id', tx.recurring_group_id).gte('date', tx.date)
@@ -249,157 +291,4 @@ async function tryDeleteTransactionFromMessage(supabase: any, userId: string, ra
   return removeFutureSeries
     ? `Removi "${tx.description}" e as recorrencias futuras a partir de ${tx.date}. Isso melhora a previsao dos proximos meses.`
     : `Removi "${tx.description}" de ${Number(tx.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}. Vou considerar essa retirada nas proximas analises.`
-}
-
-async function buildFinancialContext(supabase: any, userId: string): Promise<AIContext> {
-  const now    = new Date()
-  const start  = format(startOfMonth(now), 'yyyy-MM-dd')
-  const end    = format(endOfMonth(now),   'yyyy-MM-dd')
-  const creditStart = format(startOfMonth(subMonths(now, 2)), 'yyyy-MM-dd')
-  const creditEnd = format(endOfMonth(addMonths(now, 1)), 'yyyy-MM-dd')
-  const yearStart = format(startOfYear(now), 'yyyy-MM-dd')
-  const yearEnd = format(endOfYear(now), 'yyyy-MM-dd')
-  const annualCreditStart = format(startOfMonth(subMonths(startOfYear(now), 2)), 'yyyy-MM-dd')
-
-  const { data: profile } = await supabase.from('profiles').select('household_id, name').eq('id', userId).single()
-  if (!profile) throw new Error('Profile not found')
-
-  const hid = profile.household_id
-  const { data: allProfiles } = await supabase.from('profiles').select('name').eq('household_id', hid)
-
-  const [txRes, creditTxRes, goalsRes, savingsRes, investRes, banksRes, yearTxRes, annualCreditTxRes, recentTxRes] = await Promise.all([
-    supabase.from('transactions').select('*, category:categories(name,icon), bank:banks(*)').eq('household_id', hid).gte('date',start).lte('date',end),
-    supabase.from('transactions').select('*, category:categories(name,icon), bank:banks(*)').eq('household_id', hid).eq('status','realizado').gte('date',creditStart).lte('date',creditEnd),
-    supabase.from('goals').select('name,target_amount,current_amount,icon').eq('household_id', hid).eq('is_completed', false),
-    supabase.from('savings').select('name,type,current_amount,interest_rate').eq('household_id', hid),
-    supabase.from('investments').select('name,type,total_invested,current_price,quantity,avg_price').eq('household_id', hid),
-    supabase.from('banks').select('*').eq('household_id', hid),
-    supabase.from('transactions').select('*, category:categories(name,icon), bank:banks(*)').eq('household_id', hid).gte('date', yearStart).lte('date', yearEnd),
-    supabase.from('transactions').select('*, category:categories(name,icon), bank:banks(*)').eq('household_id', hid).eq('status','realizado').gte('date', annualCreditStart).lte('date', yearEnd),
-    supabase.from('transactions').select('id,date,description,amount,type,status,responsible_party,category:categories(name),bank:banks(name)').eq('household_id', hid).order('date', { ascending: false }).limit(20),
-  ])
-
-  const txs      = txRes.data || []
-  const banks    = banksRes.data || []
-  const bankById = new Map<string, any>(banks.map((bank: any) => [bank.id, bank]))
-  const isCreditTx = (tx: any) => bankById.get(tx.bank_id || '')?.type === 'credito'
-  const isCoupleTx = (tx: any) => (tx.responsible_party || 'casal') === 'casal'
-  const coupleTxs = txs.filter(isCoupleTx)
-  const cashTxs = coupleTxs.filter((tx: any) => !isCreditTx(tx))
-  const creditInvoiceTxs = (creditTxRes.data || []).filter((tx: any) => {
-    const bank = bankById.get(tx.bank_id || '')
-    if (!isCoupleTx(tx) || !bank || bank.type !== 'credito' || tx.type === 'receita') return false
-    return isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day, bank.closing_day), now)
-  })
-
-  const income = coupleTxs
-    .filter((t: any) => t.type === 'receita' && t.status === 'realizado')
-    .reduce((s: number, t: any) => s + Number(t.amount), 0)
-  const plannedIncome = coupleTxs
-    .filter((t: any) => t.type === 'receita' && t.status !== 'realizado')
-    .reduce((s: number, t: any) => s + Number(t.amount), 0)
-  const expenses = cashTxs
-    .filter((t: any) => t.type !== 'receita' && t.status === 'realizado')
-    .reduce((s: number, t: any) => s + Number(t.amount), 0)
-  const plannedExpenses = cashTxs
-    .filter((t: any) => t.type !== 'receita' && t.status !== 'realizado')
-    .reduce((s: number, t: any) => s + Number(t.amount), 0)
-    + creditInvoiceTxs.reduce((s: number, t: any) => s + Number(t.amount), 0)
-
-  const catMap: Record<string, { name: string; icon: string; amount: number }> = {}
-  for (const tx of [...cashTxs, ...creditInvoiceTxs] as any[]) {
-    if (tx.type !== 'receita' && tx.category) {
-      const k = tx.category.name
-      if (!catMap[k]) catMap[k] = { name: k, icon: tx.category.icon, amount: 0 }
-      catMap[k].amount += Number(tx.amount)
-    }
-  }
-
-  const savings    = (savingsRes.data || []).map((s: any) => ({ name: s.name, type: s.type, amount: Number(s.current_amount), rate: s.interest_rate ? Number(s.interest_rate) : null }))
-  const totalSaved = savings.reduce((s: number, sv: any) => s + sv.amount, 0)
-
-  const investments = (investRes.data || []).map((i: any) => {
-    const currentVal = Number(i.quantity) * Number(i.current_price)
-    const invested   = Number(i.total_invested)
-    return { name: i.name, type: i.type, invested, current: currentVal, pl: currentVal - invested }
-  })
-  const totalInvested = investments.reduce((s: number, i: any) => s + i.invested, 0)
-  const totalInvestValue = investments.reduce((s: number, i: any) => s + i.current, 0)
-  const bankBalances = banks
-    .filter((bank: any) => bank.type !== 'credito')
-    .map((bank: any) => ({ name: bank.name, type: bank.type, balance: Number(bank.current_balance || 0) }))
-  const cashBalance = bankBalances.reduce((s: number, bank: any) => s + bank.balance, 0)
-  const creditCardBills = banks
-    .filter((bank: any) => bank.type === 'credito')
-    .map((bank: any) => ({
-      name: bank.name,
-      due_day: bank.due_day,
-      closing_day: bank.closing_day,
-      amount: creditInvoiceTxs
-        .filter((tx: any) => tx.bank_id === bank.id)
-        .reduce((s: number, tx: any) => s + Number(tx.amount), 0),
-    }))
-    .filter((bill: any) => bill.amount > 0)
-  const yearTxs = (yearTxRes.data || []).filter(isCoupleTx)
-  const annualCreditTxs = (annualCreditTxRes.data || []).filter(isCoupleTx)
-  const monthlyOverview = Array.from({ length: 12 }, (_, index) => {
-    const monthDate = new Date(now.getFullYear(), index, 1)
-    const monthStart = format(startOfMonth(monthDate), 'yyyy-MM-dd')
-    const monthEnd = format(endOfMonth(monthDate), 'yyyy-MM-dd')
-    const monthTxs = yearTxs.filter((tx: any) => tx.date >= monthStart && tx.date <= monthEnd)
-    const monthCashTxs = monthTxs.filter((tx: any) => !isCreditTx(tx))
-    const monthCreditTxs = annualCreditTxs.filter((tx: any) => {
-      const bank = bankById.get(tx.bank_id || '')
-      if (!bank || bank.type !== 'credito' || tx.type === 'receita') return false
-      return isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day, bank.closing_day), monthDate)
-    })
-    const monthIncome = monthTxs.filter((tx: any) => tx.type === 'receita' && tx.status === 'realizado').reduce((s: number, tx: any) => s + Number(tx.amount), 0)
-    const monthPlannedIncome = monthTxs.filter((tx: any) => tx.type === 'receita' && tx.status !== 'realizado').reduce((s: number, tx: any) => s + Number(tx.amount), 0)
-    const monthDirectExpenses = monthCashTxs.filter((tx: any) => tx.type !== 'receita' && tx.status === 'realizado').reduce((s: number, tx: any) => s + Number(tx.amount), 0)
-    const monthPlannedDirectExpenses = monthCashTxs.filter((tx: any) => tx.type !== 'receita' && tx.status !== 'realizado').reduce((s: number, tx: any) => s + Number(tx.amount), 0)
-    const monthCardInvoice = monthCreditTxs.reduce((s: number, tx: any) => s + Number(tx.amount), 0)
-
-    return {
-      month: format(monthDate, 'MM'),
-      year: now.getFullYear(),
-      income: monthIncome,
-      planned_income: monthPlannedIncome,
-      direct_expenses: monthDirectExpenses,
-      planned_direct_expenses: monthPlannedDirectExpenses,
-      card_invoice: monthCardInvoice,
-      projected_balance: monthIncome + monthPlannedIncome - monthDirectExpenses - monthPlannedDirectExpenses - monthCardInvoice,
-    }
-  })
-  const recentTransactions = (recentTxRes.data || []).filter(isCoupleTx).map((tx: any) => ({
-    id: tx.id,
-    date: tx.date,
-    description: tx.description,
-    amount: Number(tx.amount),
-    type: tx.type,
-    status: tx.status,
-    bank: tx.bank?.name || null,
-    category: tx.category?.name || null,
-  }))
-
-  return {
-    current_month_income:    income,
-    current_month_expenses:  expenses,
-    current_month_balance:   income - expenses,
-    planned_month_income: plannedIncome,
-    planned_month_expenses: plannedExpenses,
-    projected_month_balance: income + plannedIncome - expenses - plannedExpenses,
-    projected_cash_balance: cashBalance + income + plannedIncome - expenses - plannedExpenses,
-    cash_balance: cashBalance,
-    bank_balances: bankBalances,
-    credit_card_bills: creditCardBills,
-    monthly_overview: monthlyOverview,
-    recent_transactions: recentTransactions,
-    top_expense_categories:  Object.values(catMap).sort((a, b) => b.amount - a.amount).slice(0, 5),
-    goals: (goalsRes.data || []).map((g: any) => ({ name: g.name, target: Number(g.target_amount), current: Number(g.current_amount), icon: g.icon })),
-    monthly_history: [],
-    profiles: allProfiles || [{ name: profile.name }],
-    savings,
-    investments,
-    total_patrimony: totalSaved + totalInvestValue,
-  }
 }

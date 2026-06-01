@@ -56,7 +56,8 @@ export async function POST(request: Request) {
   })
 
   if (listError) {
-    return NextResponse.json({ error: listError.message }, { status: 500 })
+    console.error('MFA factor lookup failed:', listError)
+    return NextResponse.json({ error: 'Nao foi possivel consultar os fatores MFA' }, { status: 500 })
   }
 
   const factors = factorData?.factors || []
@@ -65,7 +66,10 @@ export async function POST(request: Request) {
       userId: targetUserId,
       id: factor.id,
     })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      console.error('MFA factor removal failed:', error)
+      return NextResponse.json({ error: 'Nao foi possivel remover os fatores MFA' }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ removed: factors.length })

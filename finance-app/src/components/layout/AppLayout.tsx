@@ -24,6 +24,8 @@ const MOBILE_NAV = [
   { href: '/',             label: 'Home',       emoji: '🏠', color: '#818CF8' },
   { href: '/transactions', label: 'Gastos',     emoji: '📋', color: '#22D3EE' },
   { href: '/goals',        label: 'Metas',      emoji: '🎯', color: '#F472B6' },
+  { href: '/savings',      label: 'Reserva',    emoji: '💰', color: '#34D399' },
+  { href: '/investments',  label: 'Investir',   emoji: '📈', color: '#FBBF24' },
   { href: '/settings',     label: 'Config',     emoji: '⚙️', color: '#94A3B8' },
 ]
 

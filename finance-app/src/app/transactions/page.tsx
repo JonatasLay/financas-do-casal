@@ -205,6 +205,11 @@ function TransactionRow({
                   {reimbursementPending ? 'Neusa a reembolsar' : 'Neusa reembolsou'}
                 </span>
               )}
+              {isNeusa && tx.affects_household_cash === false && (
+                <span className="badge" style={{ background: 'rgba(167,139,250,0.10)', border: '1px solid rgba(167,139,250,0.20)', color: '#C4B5FD' }}>
+                  Somente controle
+                </span>
+              )}
               {!paid && (
                 <button onClick={onPay}
                   className="md:hidden badge inline-flex items-center gap-1"

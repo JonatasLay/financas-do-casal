@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import type { AIMessage } from '@/types'
 
 const chatStorageKey = (userId: string) => `fina-chat:${userId}`
+const visibleMessage = (content: string) => content.replace(/\[(?:CONFIRMAR_LANCAMENTO|EXCLUIR_ID:[^\]]+)\]\n?/g, '')
 
 function initialMessage(name?: string): AIMessage {
   return {
@@ -119,7 +120,7 @@ export function FinaChatBubble({ profile }: { profile?: any }) {
                     ? { background: '#6366F1', color: '#FFFFFF', borderTopRightRadius: 4 }
                     : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#E2E8F0', borderTopLeftRadius: 4 }}
                 >
-                  {msg.content}
+                  {visibleMessage(msg.content)}
                 </div>
               </div>
             ))}

@@ -193,7 +193,7 @@ export default function NeusaReportPage() {
                     <span>{format(new Date(`${tx.date}T12:00:00`), 'dd/MM/yyyy')}</span>
                     {tx.category?.name && <span>· {tx.category.name}</span>}
                     {tx.bank && <span className="inline-flex items-center gap-1">· <BankLogo bank={tx.bank} size="xs" /> {tx.bank.name}</span>}
-                    <span>· despesa direta dela</span>
+                    <span>· {tx.affects_household_cash === false ? 'somente controle' : 'paga pelo casal'}</span>
                   </p>
                 </div>
                 <p className="font-bold md:text-right" style={{ color: '#A78BFA' }}>{brl(Number(tx.amount))}</p>

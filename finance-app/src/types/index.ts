@@ -41,6 +41,7 @@ export interface Transaction {
   recurring_total?: number | null
   responsible_party?: ResponsibleParty
   is_reimbursed?: boolean
+  affects_household_cash?: boolean
   payment_method?: PaymentMethod
   category?: Category; bank?: Bank; profile?: Profile
 }

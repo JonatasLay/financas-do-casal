@@ -103,6 +103,7 @@ CREATE TABLE transactions (
   recurring_total INTEGER,
   responsible_party TEXT NOT NULL DEFAULT 'casal' CHECK (responsible_party IN ('casal', 'sogra')),
   is_reimbursed BOOLEAN NOT NULL DEFAULT FALSE,
+  affects_household_cash BOOLEAN NOT NULL DEFAULT TRUE,
   payment_method TEXT NOT NULL DEFAULT 'outro' CHECK (payment_method IN ('credito', 'debito', 'boleto', 'pix', 'dinheiro', 'transferencia', 'outro')),
   month TEXT GENERATED ALWAYS AS (TO_CHAR(date, 'MON')) STORED,
   year INTEGER GENERATED ALWAYS AS (EXTRACT(YEAR FROM date)::INTEGER) STORED,
@@ -454,7 +455,7 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON transactions FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -485,11 +486,13 @@ CREATE OR REPLACE FUNCTION transaction_cash_delta(
   p_amount NUMERIC,
   p_bank_type TEXT,
   p_transaction_date DATE,
-  p_tracking_started_at TIMESTAMPTZ
+  p_tracking_started_at TIMESTAMPTZ,
+  p_affects_household_cash BOOLEAN DEFAULT TRUE
 ) RETURNS NUMERIC AS $$
 BEGIN
   IF p_status <> 'realizado'
     OR p_bank_type = 'credito'
+    OR NOT COALESCE(p_affects_household_cash, TRUE)
     OR p_transaction_date > (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE
     OR p_transaction_date < COALESCE(p_tracking_started_at::DATE, (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE)
   THEN
@@ -506,7 +509,7 @@ BEGIN
 
   RETURN 0;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 CREATE OR REPLACE FUNCTION apply_transaction_cash_balance()
 RETURNS TRIGGER AS $$
@@ -524,7 +527,8 @@ BEGIN
       OLD.amount,
       old_bank.type,
       OLD.date,
-      old_bank.balance_tracking_started_at
+      old_bank.balance_tracking_started_at,
+      OLD.affects_household_cash
     );
 
     IF old_delta <> 0 THEN
@@ -542,7 +546,8 @@ BEGIN
       NEW.amount,
       new_bank.type,
       NEW.date,
-      new_bank.balance_tracking_started_at
+      new_bank.balance_tracking_started_at,
+      NEW.affects_household_cash
     );
 
     IF new_delta <> 0 THEN
@@ -558,7 +563,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 CREATE TRIGGER transactions_cash_balance_trigger
 AFTER INSERT OR UPDATE OR DELETE ON transactions

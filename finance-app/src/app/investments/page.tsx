@@ -413,9 +413,6 @@ export default function InvestmentsPage() {
           </>
         )}
 
-        {/* AI Advisor */}
-        <AIInvestAdvisor investments={investments} />
-
         {/* Holdings list */}
         {loading ? (
           <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="skeleton h-24 rounded-2xl" />)}</div>

@@ -18,6 +18,7 @@ import { MonthSelector } from '@/components/ui/MonthSelector'
 import { BankLogo } from '@/components/ui/BankLogo'
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal'
 import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
+import { calculateAccumulatedCashForecast } from '@/lib/finance-summary'
 import { RefreshCw, TrendingUp, PiggyBank, Wallet, ArrowUpRight, ArrowDownRight, X, Landmark } from 'lucide-react'
 import type { Transaction, Goal, Category, Budget, Bank } from '@/types'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
@@ -210,20 +211,21 @@ function QuickStats({ income, expenses, balance, prevBalance, loading }: {
   )
 }
 
-function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedCashExpenses, plannedCreditInvoices, balance, projectedBalance, cashBalance, projectedCashBalance, prevBalance, neusaTotal, neusaReceivable, neusaDirectTotal, loading, onOpen }: {
+function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedCashExpenses, plannedCreditInvoices, balance, projectedBalance, cashBalance, projectedCashBalance, prevBalance, neusaTotal, neusaReceivable, neusaDirectTotal, historical, loading, onOpen }: {
   income: number; plannedIncome: number; expenses: number; plannedCashExpenses: number; plannedCreditInvoices: number
   balance: number; projectedBalance: number; cashBalance: number; projectedCashBalance: number; prevBalance: number
-  neusaTotal: number; neusaReceivable: number; neusaDirectTotal: number; loading: boolean; onOpen: (kind: DetailKind) => void
+  neusaTotal: number; neusaReceivable: number; neusaDirectTotal: number; historical: boolean; loading: boolean; onOpen: (kind: DetailKind) => void
 }) {
   const balanceDelta = prevBalance !== 0 ? ((projectedBalance - prevBalance) / Math.abs(prevBalance)) * 100 : 0
   const deltaPositive = balanceDelta >= 0
   const totalIncome = income + plannedIncome
   const directExpenses = expenses + plannedCashExpenses
+  const displayedBalance = historical ? projectedBalance : projectedCashBalance
   const cards = [
     { kind: 'income' as const, label: 'Receitas', value: totalIncome, detail: `${brl(income)} recebido · ${brl(plannedIncome)} previsto`, color: '#34D399' },
     { kind: 'expenses' as const, label: 'Despesas diretas', value: directExpenses, detail: `${brl(expenses)} pago · ${brl(plannedCashExpenses)} previsto`, color: '#F87171' },
     { kind: 'planned' as const, label: 'Fatura cartão', value: plannedCreditInvoices, detail: 'compras que vencem no mês', color: '#FBBF24' },
-    { kind: 'balance' as const, label: 'Caixa previsto', value: projectedCashBalance, detail: `contas ${brl(cashBalance)} | mês ${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)}`, color: projectedCashBalance >= 0 ? '#818CF8' : '#F87171' },
+    { kind: 'balance' as const, label: historical ? 'Resultado do mês' : 'Caixa acumulado', value: displayedBalance, detail: historical ? 'receitas menos despesas e faturas' : `contas hoje ${brl(cashBalance)} | mês ${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)}`, color: displayedBalance >= 0 ? '#818CF8' : '#F87171' },
     { kind: 'neusa' as const, label: 'Neusa', value: neusaTotal, detail: `${brl(neusaReceivable)} cartão | ${brl(neusaDirectTotal)} diretas`, color: '#F9A8D4' },
   ]
 
@@ -234,8 +236,8 @@ function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedCashExpe
       style={{ background: 'linear-gradient(135deg, rgba(129,140,248,0.08), rgba(244,114,182,0.05))', border: '1px solid rgba(129,140,248,0.18)' }}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Caixa previsto no fim do mês</p>
-          <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>Saldo atual das contas + resultado previsto do mês</p>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>{historical ? 'Resultado consolidado do mês' : 'Caixa previsto no fim do mês'}</p>
+          <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>{historical ? 'Receitas menos despesas diretas e faturas do período' : 'Saldo atual das contas + fluxo acumulado até o mês selecionado'}</p>
         </div>
         {prevBalance !== 0 && (
           <div className="flex items-center gap-1">
@@ -248,8 +250,8 @@ function MonthlyCommandCenter({ income, plannedIncome, expenses, plannedCashExpe
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <p className="text-4xl font-bold font-mono-nums" style={{ color: projectedCashBalance >= 0 ? '#34D399' : '#F87171' }}>
-          {projectedCashBalance >= 0 ? '+' : ''}{brl(projectedCashBalance)}
+        <p className="text-4xl font-bold font-mono-nums" style={{ color: displayedBalance >= 0 ? '#34D399' : '#F87171' }}>
+          {displayedBalance >= 0 ? '+' : ''}{brl(displayedBalance)}
         </p>
         <p className="text-xs pb-1" style={{ color: '#64748B' }}>
           resultado do mês: <span className="font-bold" style={{ color: projectedBalance >= 0 ? '#34D399' : '#F87171' }}>{projectedBalance >= 0 ? '+' : ''}{brl(projectedBalance)}</span>
@@ -311,6 +313,7 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [nextMonthTransactions, setNextMonthTransactions] = useState<Transaction[]>([])
   const [creditInvoiceTransactions, setCreditInvoiceTransactions] = useState<Transaction[]>([])
+  const [forecastTransactions, setForecastTransactions] = useState<Transaction[]>([])
   const [goals, setGoals]       = useState<Goal[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [budgets, setBudgets]   = useState<Budget[]>([])
@@ -354,8 +357,12 @@ export default function DashboardPage() {
     const nextEnd   = format(endOfMonth(addMonths(currentDate, 1)), 'yyyy-MM-dd')
     const creditStart = format(startOfMonth(subMonths(currentDate, 2)), 'yyyy-MM-dd')
     const creditEnd   = format(endOfMonth(addMonths(currentDate, 1)), 'yyyy-MM-dd')
+    const today = new Date()
+    const forecastEndDate = currentDate > today ? currentDate : today
+    const forecastStart = format(startOfMonth(subMonths(today, 2)), 'yyyy-MM-dd')
+    const forecastEnd = format(endOfMonth(addMonths(forecastEndDate, 1)), 'yyyy-MM-dd')
 
-    const [txRes, goalsRes, catsRes, budgetsRes, banksRes, prevTxRes, nextTxRes, creditTxRes] = await Promise.all([
+    const [txRes, goalsRes, catsRes, budgetsRes, banksRes, prevTxRes, nextTxRes, creditTxRes, forecastTxRes] = await Promise.all([
       supabase.from('transactions')
         .select('*, category:categories(*), bank:banks(*), profile:profiles(name, avatar_color, avatar_emoji)')
         .eq('household_id', hid).gte('date', start).lte('date', end).order('date', { ascending: false }),
@@ -371,11 +378,15 @@ export default function DashboardPage() {
       supabase.from('transactions')
         .select('*, category:categories(*), bank:banks(*), profile:profiles(name, avatar_color, avatar_emoji)')
         .eq('household_id', hid).gte('date', creditStart).lte('date', creditEnd).order('date', { ascending: false }),
+      supabase.from('transactions')
+        .select('*, category:categories(*), bank:banks(*)')
+        .eq('household_id', hid).gte('date', forecastStart).lte('date', forecastEnd),
     ])
 
     setTransactions(txRes.data || [])
     setNextMonthTransactions((nextTxRes.data || []) as Transaction[])
     setCreditInvoiceTransactions((creditTxRes.data || []) as Transaction[])
+    setForecastTransactions((forecastTxRes.data || []) as Transaction[])
     setGoals(goalsRes.data || [])
     setCategories(catsRes.data || [])
     setBudgets(budgetsRes.data || [])
@@ -467,7 +478,8 @@ export default function DashboardPage() {
   const balance  = income - expenses
   const projectedBalance = income + plannedIncome - expenses - plannedExpenses
   const cashBalance = banks.filter(bank => bank.type !== 'credito').reduce((sum, bank) => sum + Number(bank.current_balance || 0), 0)
-  const projectedCashBalance = cashBalance + projectedBalance
+  const { projectedCashBalance } = calculateAccumulatedCashForecast(forecastTransactions, banks, currentDate)
+  const isHistoricalMonth = format(startOfMonth(currentDate), 'yyyy-MM-dd') < format(startOfMonth(new Date()), 'yyyy-MM-dd')
   const neusaCardTransactions = creditInvoiceDueThisMonth.filter(isNeusa)
   const neusaDirectTransactions = cashTransactions.filter(t => isNeusa(t) && t.type !== 'receita')
   const neusaTransactions = [...neusaCardTransactions, ...neusaDirectTransactions]
@@ -490,7 +502,7 @@ export default function DashboardPage() {
   const details: Record<DetailKind, { title: string; subtitle: string; transactions: Transaction[]; total?: number }> = {
     income: { title: 'Receitas do mês', subtitle: 'Recebidas e previstas/agendadas no mês selecionado', transactions: visibleIncomeTransactions },
     expenses: { title: 'Despesas diretas do casal', subtitle: 'Saídas de caixa realizadas, pendentes e agendadas, sem cartão de crédito', transactions: visibleCashTransactions.filter(t => t.type !== 'receita') },
-    balance: { title: 'Composição do caixa previsto', subtitle: `Contas ${brl(cashBalance)} + resultado do mês ${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)} = ${brl(projectedCashBalance)}`, transactions: [...visibleIncomeTransactions, ...visibleCashTransactions.filter(t => t.type !== 'receita'), ...visibleCreditInvoices], total: projectedCashBalance },
+    balance: { title: 'Movimentação do mês', subtitle: isHistoricalMonth ? 'Receitas menos despesas diretas e faturas do período.' : `Este detalhamento reconcilia o resultado isolado do mês (${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)}). Somado ao caixa atual e aos meses anteriores, o caixa acumulado exibido no card é ${brl(projectedCashBalance)}.`, transactions: [...visibleIncomeTransactions, ...visibleCashTransactions.filter(t => t.type !== 'receita'), ...visibleCreditInvoices], total: projectedBalance },
     planned: { title: 'Fatura cartão', subtitle: 'Compras de cartão que vencem no mês selecionado', transactions: visibleCreditInvoices },
     neusa: { title: 'Neusa no mês', subtitle: `Cartão usado ${brl(neusaCardTotal)} · a receber ${brl(neusaReceivable)} · despesas diretas dela ${brl(neusaDirectTotal)}`, transactions: neusaTransactions, total: neusaTotal },
     'future-income': { title: 'Receber na prévia', subtitle: 'Receitas do próximo mês selecionado na prévia', transactions: nextMonthTransactions.filter(t => t.type === 'receita') },
@@ -606,6 +618,7 @@ export default function DashboardPage() {
               neusaTotal={neusaTotal}
               neusaReceivable={neusaReceivable}
               neusaDirectTotal={neusaDirectTotal}
+              historical={isHistoricalMonth}
               loading={loading}
               onOpen={setDetailKind}
             />

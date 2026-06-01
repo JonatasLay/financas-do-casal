@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { format } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import { BankLogo } from '@/components/ui/BankLogo'
 import { FileUp, X } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Bank, Category, PaymentMethod, Transaction } from '@/types'
+import type { Bank, Category, PaymentMethod, ResponsibleParty, Transaction } from '@/types'
 
 const brl = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -198,6 +199,7 @@ export function StatementImportModal({
   const [bankId, setBankId] = useState('')
   const [expenseCategoryId, setExpenseCategoryId] = useState('')
   const [incomeCategoryId, setIncomeCategoryId] = useState('')
+  const [responsibleParty, setResponsibleParty] = useState<ResponsibleParty>('casal')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -206,6 +208,7 @@ export function StatementImportModal({
       setBankId('')
       setExpenseCategoryId('')
       setIncomeCategoryId('')
+      setResponsibleParty('casal')
     }
   }, [open])
 
@@ -278,6 +281,7 @@ export function StatementImportModal({
     if (!selectedRows.length) return void toast.error('Selecione pelo menos um lançamento')
 
     setSaving(true)
+    const today = format(new Date(), 'yyyy-MM-dd')
     const payload = selectedRows.map(row => ({
       household_id: householdId,
       created_by: profileId,
@@ -287,10 +291,11 @@ export function StatementImportModal({
       type: row.type,
       category_id: row.category_id || (row.type === 'receita' ? incomeCategoryId || null : expenseCategoryId || null),
       bank_id: bankId || null,
-      status: 'realizado',
+      status: selectedBank?.type !== 'credito' && row.date > today ? 'agendado' : 'realizado',
       notes: 'Importado por extrato CSV',
       is_recurring: false,
-      responsible_party: 'casal',
+      responsible_party: responsibleParty,
+      affects_household_cash: responsibleParty === 'casal',
       is_reimbursed: false,
       payment_method: paymentMethod,
     }))
@@ -332,7 +337,7 @@ export function StatementImportModal({
             <input type="file" accept=".csv,text/csv" className="hidden" onChange={event => handleFile(event.target.files?.[0])} />
           </label>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <select value={bankId} onChange={event => setBankId(event.target.value)} className="input">
               <option value="">Banco/conta opcional</option>
               {banks.map(bank => <option key={bank.id} value={bank.id}>{bank.name}</option>)}
@@ -344,6 +349,10 @@ export function StatementImportModal({
             <select value={incomeCategoryId} onChange={event => setIncomeCategoryId(event.target.value)} className="input">
               <option value="">Categoria padrão para receitas</option>
               {incomeCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+            </select>
+            <select value={responsibleParty} onChange={event => setResponsibleParty(event.target.value as ResponsibleParty)} className="input">
+              <option value="casal">Casal</option>
+              <option value="sogra">Neusa - somente controle</option>
             </select>
           </div>
 

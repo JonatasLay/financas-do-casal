@@ -70,6 +70,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
   const [installments, setInstallments] = useState(1)
   const [responsibleParty, setResponsibleParty] = useState<ResponsibleParty>('casal')
   const [isReimbursed, setIsReimbursed] = useState(false)
+  const [affectsHouseholdCash, setAffectsHouseholdCash] = useState(true)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('outro')
 
   useEffect(() => {
@@ -106,6 +107,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       setInstallments(1)
       setResponsibleParty(editTransaction.responsible_party || 'casal')
       setIsReimbursed(!!editTransaction.is_reimbursed)
+      setAffectsHouseholdCash(editTransaction.affects_household_cash !== false)
       setPaymentMethod(editTransaction.payment_method || inferPaymentMethod(editTransaction.bank))
     } else {
       reset()
@@ -119,6 +121,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
   )
   const selectedBank = banks.find(bank => bank.id === bankId)
   const isCreditExpense = paymentMethod === 'credito' && !!selectedBank && selectedBank.type === 'credito' && type !== 'receita'
+  const isNeusaDirectExpense = responsibleParty === 'sogra' && type !== 'receita' && !isCreditExpense
   const isBoletoExpense = paymentMethod === 'boleto' && type !== 'receita'
   const firstInvoiceDate = isCreditExpense ? getCreditCardPaymentDate(date, selectedBank?.due_day, selectedBank?.closing_day) : null
   const canGenerateMonthlyRows = (isCreditExpense || isBoletoExpense) && !isEdit
@@ -136,6 +139,11 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
     if (!isCreditExpense && !isBoletoExpense) setInstallments(1)
   }, [open, isEdit, isBoletoExpense, isCreditExpense])
 
+  useEffect(() => {
+    if (responsibleParty === 'casal' || isCreditExpense) setAffectsHouseholdCash(true)
+    else if (!isEdit && isNeusaDirectExpense) setAffectsHouseholdCash(false)
+  }, [responsibleParty, isCreditExpense, isEdit, isNeusaDirectExpense])
+
   const reset = () => {
     setDate(format(new Date(), 'yyyy-MM-dd'))
     setDescription('')
@@ -149,6 +157,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
     setInstallments(1)
     setResponsibleParty('casal')
     setIsReimbursed(false)
+    setAffectsHouseholdCash(true)
     setPaymentMethod('outro')
   }
 
@@ -185,6 +194,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
         is_recurring: isRecurring || (isBoletoExpense && safeInstallments > 1),
         responsible_party: responsibleParty,
         is_reimbursed: responsibleParty === 'sogra' ? isReimbursed : false,
+        affects_household_cash: responsibleParty === 'casal' || isCreditExpense ? true : affectsHouseholdCash,
         payment_method: paymentMethod,
       }
 
@@ -554,6 +564,24 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
             </div>
 
             {responsibleParty === 'sogra' && (
+              <div className="space-y-2">
+                {isNeusaDirectExpense && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: false, label: 'Somente controle', detail: 'Nao altera o caixa do casal' },
+                      { value: true, label: 'Pago pelo casal', detail: 'Sai de uma conta de voces' },
+                    ].map(item => (
+                      <button key={String(item.value)} type="button" onClick={() => setAffectsHouseholdCash(item.value)}
+                        className="rounded-xl border px-3 py-2.5 text-left"
+                        style={affectsHouseholdCash === item.value
+                          ? { background: 'rgba(244,114,182,0.12)', borderColor: '#F472B6', color: '#F9A8D4' }
+                          : { background: inputBg, borderColor: 'rgba(255,255,255,0.07)', color: '#94A3B8' }}>
+                        <p className="text-xs font-semibold">{item.label}</p>
+                        <p className="text-[10px] mt-0.5 opacity-70">{item.detail}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
               <label className="flex items-center gap-3 p-3.5 rounded-xl cursor-pointer"
                 style={{ background: 'rgba(244,114,182,0.07)', border: '1px solid rgba(244,114,182,0.18)' }}>
                 <input type="checkbox" checked={isReimbursed} onChange={e => setIsReimbursed(e.target.checked)}
@@ -563,6 +591,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
                   <p className="text-xs" style={{ color: '#64748B' }}>No cartão, marca o reembolso. Em despesa direta, marca que a conta dela foi paga.</p>
                 </div>
               </label>
+              </div>
             )}
           </div>
 
