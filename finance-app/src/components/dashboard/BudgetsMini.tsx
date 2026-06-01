@@ -36,7 +36,7 @@ export function BudgetsMini({ budgets, transactions, loading }: BudgetsMiniProps
 
   const spentByCategory: Record<string, number> = {}
   for (const tx of transactions) {
-    if (tx.type === 'receita' || tx.status !== 'realizado' || !tx.category_id) continue
+    if (tx.type === 'receita' || !tx.category_id) continue
     spentByCategory[tx.category_id] = (spentByCategory[tx.category_id] || 0) + Number(tx.amount)
   }
 

@@ -276,7 +276,7 @@ async function buildFinancialContext(supabase: any, userId: string): Promise<AIC
     supabase.from('banks').select('*').eq('household_id', hid),
     supabase.from('transactions').select('*, category:categories(name,icon), bank:banks(*)').eq('household_id', hid).gte('date', yearStart).lte('date', yearEnd),
     supabase.from('transactions').select('*, category:categories(name,icon), bank:banks(*)').eq('household_id', hid).eq('status','realizado').gte('date', annualCreditStart).lte('date', yearEnd),
-    supabase.from('transactions').select('id,date,description,amount,type,status,category:categories(name),bank:banks(name)').eq('household_id', hid).order('date', { ascending: false }).limit(20),
+    supabase.from('transactions').select('id,date,description,amount,type,status,responsible_party,category:categories(name),bank:banks(name)').eq('household_id', hid).order('date', { ascending: false }).limit(20),
   ])
 
   const txs      = txRes.data || []

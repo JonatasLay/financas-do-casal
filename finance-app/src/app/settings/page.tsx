@@ -875,13 +875,16 @@ function BudgetsTab({ categories, householdId }: { categories: Category[]; house
     const end   = format(endOfMonth(currentDate), 'yyyy-MM-dd')
     const [budgetsRes, txRes] = await Promise.all([
       supabase.from('budgets').select('*').eq('household_id', householdId).eq('month', currentMonth).eq('year', currentYear),
-      supabase.from('transactions').select('category_id, amount, type, status').eq('household_id', householdId).eq('status', 'realizado').neq('type', 'receita').gte('date', start).lte('date', end),
+      supabase.from('transactions').select('category_id, amount, type, status, responsible_party').eq('household_id', householdId).neq('type', 'receita').gte('date', start).lte('date', end),
     ])
     const vals: Record<string, string> = {}
     for (const b of (budgetsRes.data || []) as Budget[]) vals[b.category_id] = String(b.amount)
     setBudgetValues(vals)
     const spent: Record<string, number> = {}
-    for (const tx of (txRes.data || [])) { if (!tx.category_id) continue; spent[tx.category_id] = (spent[tx.category_id] || 0) + Number(tx.amount) }
+    for (const tx of (txRes.data || [])) {
+      if (!tx.category_id || (tx.responsible_party || 'casal') !== 'casal') continue
+      spent[tx.category_id] = (spent[tx.category_id] || 0) + Number(tx.amount)
+    }
     setSpentByCategory(spent)
     setLoading(false)
   }, [householdId, currentMonth, currentYear])

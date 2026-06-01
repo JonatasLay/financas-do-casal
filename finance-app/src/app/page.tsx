@@ -35,16 +35,22 @@ const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', curren
 
 type DetailKind = 'income' | 'expenses' | 'balance' | 'planned' | 'neusa' | 'future-income' | 'future-couple' | 'future-expenses' | 'future-card'
 
-function DetailModal({ open, title, subtitle, transactions, totalOverride, onClose }: {
+function DetailModal({ open, title, subtitle, transactions, totalOverride, breakdownByBank = false, onClose }: {
   open: boolean
   title: string
   subtitle?: string
   transactions: Transaction[]
   totalOverride?: number
+  breakdownByBank?: boolean
   onClose: () => void
 }) {
   if (!open) return null
   const total = totalOverride ?? transactions.reduce((sum, tx) => sum + (tx.type === 'receita' ? Number(tx.amount) : -Number(tx.amount)), 0)
+  const bankSubtotals = Array.from(transactions.reduce((groups, tx) => {
+    const name = tx.bank?.name || 'Sem banco informado'
+    groups.set(name, (groups.get(name) || 0) + Number(tx.amount))
+    return groups
+  }, new Map<string, number>()))
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
@@ -64,7 +70,18 @@ function DetailModal({ open, title, subtitle, transactions, totalOverride, onClo
           </div>
         </div>
 
-        <div className="p-4 space-y-2 overflow-y-auto max-h-[64dvh]">
+        <div className="p-4 space-y-3 overflow-y-auto max-h-[64dvh]">
+          {breakdownByBank && bankSubtotals.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {bankSubtotals.map(([name, subtotal]) => (
+                <div key={name} className="rounded-xl px-3 py-2 flex items-center justify-between gap-3"
+                  style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.16)' }}>
+                  <p className="text-xs font-medium" style={{ color: '#CBD5E1' }}>{name}</p>
+                  <p className="text-xs font-bold font-mono-nums" style={{ color: '#FB923C' }}>{brl(subtotal)}</p>
+                </div>
+              ))}
+            </div>
+          )}
           {transactions.length === 0 ? (
             <p className="text-sm text-center py-8" style={{ color: '#64748B' }}>Nenhum lançamento neste grupo.</p>
           ) : transactions.map(tx => (
@@ -332,7 +349,6 @@ export default function DashboardPage() {
     const year  = currentDate.getFullYear()
 
     // Previous month for delta
-    const prevStart = format(startOfMonth(subMonths(currentDate, 1)), 'yyyy-MM-dd')
     const prevEnd   = format(endOfMonth(subMonths(currentDate, 1)), 'yyyy-MM-dd')
     const nextStart = format(startOfMonth(addMonths(currentDate, 1)), 'yyyy-MM-dd')
     const nextEnd   = format(endOfMonth(addMonths(currentDate, 1)), 'yyyy-MM-dd')
@@ -347,8 +363,8 @@ export default function DashboardPage() {
       supabase.from('categories').select('*').eq('household_id', hid),
       supabase.from('budgets').select('*, category:categories(*)').eq('household_id', hid).eq('month', month).eq('year', year),
       supabase.from('banks').select('*').eq('household_id', hid),
-      supabase.from('transactions').select('amount, type, status')
-        .eq('household_id', hid).eq('status', 'realizado').gte('date', prevStart).lte('date', prevEnd),
+      supabase.from('transactions').select('amount, type, status, date, bank_id, responsible_party')
+        .eq('household_id', hid).eq('status', 'realizado').gte('date', format(startOfMonth(subMonths(currentDate, 3)), 'yyyy-MM-dd')).lte('date', prevEnd),
       supabase.from('transactions')
         .select('*, category:categories(*), bank:banks(*), profile:profiles(name, avatar_color, avatar_emoji)')
         .eq('household_id', hid).gte('date', nextStart).lte('date', nextEnd).order('date', { ascending: true }),
@@ -365,23 +381,45 @@ export default function DashboardPage() {
     setBudgets(budgetsRes.data || [])
     setBanks((banksRes.data || []) as Bank[])
 
+    const fetchedBanks = (banksRes.data || []) as Bank[]
+    const fetchedBankById = new Map(fetchedBanks.map(bank => [bank.id, bank]))
+    const isFetchedCreditTx = (tx: any) => fetchedBankById.get(tx.bank_id || '')?.type === 'credito'
+    const isFetchedCoupleTx = (tx: any) => (tx.responsible_party || 'casal') === 'casal'
+    const realizedMonthBalance = (rows: any[], targetMonth: Date) => {
+      const directRows = rows.filter(tx =>
+        isFetchedCoupleTx(tx)
+        && !isFetchedCreditTx(tx)
+        && tx.date >= format(startOfMonth(targetMonth), 'yyyy-MM-dd')
+        && tx.date <= format(endOfMonth(targetMonth), 'yyyy-MM-dd')
+      )
+      const creditRows = rows.filter(tx => {
+        const bank = fetchedBankById.get(tx.bank_id || '')
+        return isFetchedCoupleTx(tx)
+          && bank?.type === 'credito'
+          && tx.type !== 'receita'
+          && isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day, bank.closing_day), targetMonth)
+      })
+      const incomeTotal = directRows.filter(tx => tx.type === 'receita').reduce((sum, tx) => sum + Number(tx.amount), 0)
+      const directExpenseTotal = directRows.filter(tx => tx.type !== 'receita').reduce((sum, tx) => sum + Number(tx.amount), 0)
+      const cardTotal = creditRows.reduce((sum, tx) => sum + Number(tx.amount), 0)
+      return { income: incomeTotal, expenses: directExpenseTotal + cardTotal }
+    }
+
     // Previous month balance
     const prevTx = prevTxRes.data || []
-    const pIncome   = prevTx.filter(t => t.type === 'receita').reduce((s, t) => s + Number(t.amount), 0)
-    const pExpenses = prevTx.filter(t => t.type !== 'receita').reduce((s, t) => s + Number(t.amount), 0)
-    setPrevBalance(pIncome - pExpenses)
+    const prevTotals = realizedMonthBalance(prevTx, subMonths(currentDate, 1))
+    setPrevBalance(prevTotals.income - prevTotals.expenses)
 
     // Monthly history
     const history: { month: string; income: number; expenses: number }[] = []
     for (let i = 5; i >= 0; i--) {
       const d = subMonths(currentDate, i)
-      const s = format(startOfMonth(d), 'yyyy-MM-dd')
+      const s = format(startOfMonth(subMonths(d, 2)), 'yyyy-MM-dd')
       const e = format(endOfMonth(d), 'yyyy-MM-dd')
-      const { data } = await supabase.from('transactions').select('amount, type')
+      const { data } = await supabase.from('transactions').select('amount, type, status, date, bank_id, responsible_party')
         .eq('household_id', hid).eq('status', 'realizado').gte('date', s).lte('date', e)
-      const inc = (data || []).filter(t => t.type === 'receita').reduce((a, t) => a + Number(t.amount), 0)
-      const exp = (data || []).filter(t => t.type !== 'receita').reduce((a, t) => a + Number(t.amount), 0)
-      history.push({ month: format(d, 'MMM', { locale: ptBR }), income: inc, expenses: exp })
+      const totals = realizedMonthBalance(data || [], d)
+      history.push({ month: format(d, 'MMM', { locale: ptBR }), income: totals.income, expenses: totals.expenses })
     }
     setMonthlyHistory(history)
     setLoading(false)
@@ -412,8 +450,9 @@ export default function DashboardPage() {
   const visibleCashTransactions = cashTransactions.filter(isCouple)
   const visibleCreditInvoices = creditInvoiceDueThisMonth.filter(isCouple)
   const coupleFinancialTransactions = financialTransactions.filter(tx => (tx.responsible_party || 'casal') === 'casal')
+  const coupleBudgetTransactions = transactions.filter(tx => isCouple(tx) && tx.type !== 'receita')
 
-  const visibleIncomeTransactions = transactions.filter(t => t.type === 'receita')
+  const visibleIncomeTransactions = transactions.filter(t => t.type === 'receita' && isCouple(t))
   const income = visibleIncomeTransactions.filter(t => t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
   const plannedIncome = visibleIncomeTransactions.filter(t => t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
   const expenses = visibleCashTransactions
@@ -463,8 +502,8 @@ export default function DashboardPage() {
   const byCategory = categories
     .map(cat => ({
       category: cat,
-      total: coupleFinancialTransactions
-        .filter(t => t.category_id === cat.id && t.type !== 'receita')
+      total: coupleBudgetTransactions
+        .filter(t => t.category_id === cat.id)
         .reduce((s, t) => s + Number(t.amount), 0),
     }))
     .filter(x => x.total > 0)
@@ -540,7 +579,7 @@ export default function DashboardPage() {
               cashBalance={cashBalance}
               neusaReceivable={neusaReceivable}
               budgets={budgets}
-              transactions={coupleFinancialTransactions}
+              transactions={coupleBudgetTransactions}
               creditInvoiceTotal={cardInvoiceTotal}
               selectedMonth={currentDate}
               loading={loading}
@@ -599,7 +638,7 @@ export default function DashboardPage() {
 
           {/* ── Row 8: Budgets ── */}
           <motion.div {...fadeUp(0.24)}>
-            <BudgetsMini budgets={budgets} transactions={coupleFinancialTransactions} loading={loading} />
+            <BudgetsMini budgets={budgets} transactions={coupleBudgetTransactions} loading={loading} />
           </motion.div>
 
           {/* ── Row 9: Credit cards ── */}
@@ -622,6 +661,7 @@ export default function DashboardPage() {
         subtitle={detailKind ? details[detailKind].subtitle : ''}
         transactions={detailKind ? details[detailKind].transactions : []}
         totalOverride={detailKind ? details[detailKind].total : undefined}
+        breakdownByBank={detailKind === 'planned' || detailKind === 'future-card'}
         onClose={() => setDetailKind(null)}
       />
     </AppLayout>

@@ -472,6 +472,7 @@ CREATE INDEX idx_transactions_year_month ON transactions(year, month);
 CREATE INDEX idx_transactions_category ON transactions(category_id);
 CREATE INDEX idx_transactions_responsible_party ON transactions(household_id, responsible_party, is_reimbursed);
 CREATE INDEX idx_transactions_payment_method ON transactions(household_id, payment_method, status, date);
+CREATE UNIQUE INDEX idx_banks_household_type_name_unique ON banks(household_id, type, lower(btrim(name)));
 CREATE INDEX idx_transactions_recurring_group ON transactions(household_id, recurring_group_id, date);
 CREATE INDEX idx_savings_household ON savings(household_id);
 CREATE INDEX idx_savings_history_household ON savings_history(household_id, savings_id, date DESC);
