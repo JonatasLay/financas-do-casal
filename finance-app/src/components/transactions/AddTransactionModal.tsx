@@ -206,6 +206,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
             const recurringIndex = index + 2
             return {
               ...payload,
+              status: 'agendado' as const,
               date: format(addMonths(startDate, index + 1), 'yyyy-MM-dd'),
               recurring_group_id: editRecurringGroupId,
               recurring_index: recurringIndex,
@@ -237,6 +238,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
           return {
             ...payload,
             amount,
+            status: isRecurring && index > 0 ? 'agendado' as const : payload.status,
             date: format(addMonths(startDate, index), 'yyyy-MM-dd'),
             description: !isRecurring && rowCount > 1
               ? `${description.trim()} (${installmentLabel} ${String(installmentNumber).padStart(2, '0')}/${String(rowCount).padStart(2, '0')})`

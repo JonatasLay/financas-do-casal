@@ -490,7 +490,8 @@ CREATE OR REPLACE FUNCTION transaction_cash_delta(
 BEGIN
   IF p_status <> 'realizado'
     OR p_bank_type = 'credito'
-    OR p_transaction_date < COALESCE(p_tracking_started_at::DATE, CURRENT_DATE)
+    OR p_transaction_date > (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE
+    OR p_transaction_date < COALESCE(p_tracking_started_at::DATE, (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE)
   THEN
     RETURN 0;
   END IF;

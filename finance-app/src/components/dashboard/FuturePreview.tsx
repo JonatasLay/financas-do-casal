@@ -25,7 +25,7 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
   const bankById = new Map(banks.map(bank => [bank.id, bank]))
 
   const income = transactions
-    .filter(tx => tx.type === 'receita')
+    .filter(tx => tx.type === 'receita' && isCoupleExpense(tx))
     .reduce((sum, tx) => sum + Number(tx.amount), 0)
 
   const directTransactions = transactions
