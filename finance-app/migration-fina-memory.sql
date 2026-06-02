@@ -24,6 +24,14 @@ CREATE TRIGGER update_fina_financial_profiles_updated_at
 BEFORE UPDATE ON public.fina_financial_profiles
 FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+ALTER TABLE public.ai_conversations
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+DROP TRIGGER IF EXISTS update_ai_conversations_updated_at ON public.ai_conversations;
+CREATE TRIGGER update_ai_conversations_updated_at
+BEFORE UPDATE ON public.ai_conversations
+FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
 CREATE INDEX IF NOT EXISTS idx_ai_conversations_created_by_updated
   ON public.ai_conversations(created_by, updated_at DESC);
 
