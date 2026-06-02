@@ -14,7 +14,7 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
   if (!profile?.household_id) throw new Error('Profile not found')
   const hid = profile.household_id
 
-  const [profilesRes, txRes, goalsRes, savingsRes, investRes, banksRes, recentTxRes] = await Promise.all([
+  const [profilesRes, txRes, goalsRes, savingsRes, investRes, banksRes, recentTxRes, finaProfileRes] = await Promise.all([
     supabase.from('profiles').select('name').eq('household_id', hid),
     supabase.from('transactions').select('*, category:categories(name,icon), bank:banks(*)').eq('household_id', hid).gte('date', queryStart).lte('date', queryEnd),
     supabase.from('goals').select('name,target_amount,current_amount,icon').eq('household_id', hid).eq('is_completed', false),
@@ -22,6 +22,7 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
     supabase.from('investments').select('name,type,total_invested,current_price,quantity,avg_price').eq('household_id', hid),
     supabase.from('banks').select('*').eq('household_id', hid),
     supabase.from('transactions').select('id,date,description,amount,type,status,responsible_party,category:categories(name),bank:banks(name)').eq('household_id', hid).order('date', { ascending: false }).limit(30),
+    supabase.from('fina_financial_profiles').select('profile_summary').eq('household_id', hid).maybeSingle(),
   ])
 
   const transactions = (txRes.data || []) as Transaction[]
@@ -130,5 +131,6 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
     investments,
     total_patrimony: savings.reduce((sum: number, item: any) => sum + item.amount, 0)
       + investments.reduce((sum: number, item: any) => sum + item.current, 0),
+    fina_memory: finaProfileRes.data?.profile_summary || '',
   }
 }

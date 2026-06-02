@@ -5,11 +5,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, List, Target, Settings, LogOut,
-  Plus, PiggyBank, LineChart,
+  Plus, PiggyBank, LineChart, Bot,
 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { FinaChatBubble } from './FinaChatBubble'
 
 const NAV_ITEMS = [
   { href: '/',             label: 'Dashboard',     icon: LayoutDashboard, emoji: '🏠', color: '#818CF8' },
@@ -17,6 +16,7 @@ const NAV_ITEMS = [
   { href: '/goals',        label: 'Metas',          icon: Target,          emoji: '🎯', color: '#F472B6' },
   { href: '/savings',      label: 'Poupança',       icon: PiggyBank,       emoji: '💰', color: '#34D399' },
   { href: '/investments',  label: 'Investimentos',  icon: LineChart,       emoji: '📈', color: '#FBBF24' },
+  { href: '/ai',           label: 'Fina IA',        icon: Bot,             emoji: '✨', color: '#C084FC' },
   { href: '/settings',     label: 'Config',         icon: Settings,        emoji: '⚙️', color: '#94A3B8' },
 ]
 
@@ -26,6 +26,7 @@ const MOBILE_NAV = [
   { href: '/goals',        label: 'Metas',      emoji: '🎯', color: '#F472B6' },
   { href: '/savings',      label: 'Reserva',    emoji: '💰', color: '#34D399' },
   { href: '/investments',  label: 'Investir',   emoji: '📈', color: '#FBBF24' },
+  { href: '/ai',           label: 'Fina',       emoji: '✨', color: '#C084FC' },
   { href: '/settings',     label: 'Config',     emoji: '⚙️', color: '#94A3B8' },
 ]
 
@@ -181,12 +182,12 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
           WebkitBackdropFilter: 'blur(24px)',
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}>
-        <div className="flex items-center justify-around px-1 pt-1 pb-2">
+        <div className="flex items-center overflow-x-auto px-1 pt-1 pb-2">
           {MOBILE_NAV.map(item => {
             const active = pathname === item.href
             return (
               <Link key={item.href} href={item.href}
-                className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all duration-150 min-w-0 flex-1 active:scale-95"
+                className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all duration-150 min-w-[64px] flex-1 active:scale-95"
                 style={{ background: active ? `${item.color}12` : 'transparent' }}>
                 <span className="text-2xl leading-none transition-all duration-150"
                   style={{
@@ -206,7 +207,6 @@ export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
         </div>
       </nav>
 
-      <FinaChatBubble profile={profile} />
     </div>
   )
 }

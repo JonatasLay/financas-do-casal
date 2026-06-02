@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 export const maxDuration = 30
 
 import { createClient } from '@/lib/supabase/server'
-import { chatWithFina, analyzePurchase, analyzeInvestments } from '@/lib/ai'
-import { AIMessage } from '@/types'
+import { chatWithFina, analyzePurchase, analyzeInvestments, updateFinancialMemory } from '@/lib/ai'
+import { AIContext, AIMessage } from '@/types'
 import { format, subDays } from 'date-fns'
 import { buildFinancialContext as buildSharedFinancialContext } from '@/lib/server/financial-context'
 
@@ -15,27 +15,120 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { messages, mode, purchaseItem, purchasePrice, investmentQuestion } = await req.json()
-    const allMessages = (messages as AIMessage[] | undefined) || []
+    const allMessages = normalizeMessages(messages)
     const context = await buildSharedFinancialContext(supabase, user.id)
+    const respond = async (response: string) => {
+      await Promise.allSettled([
+        saveConversation(supabase, user.id, allMessages, response, context),
+        refreshFinancialMemory(supabase, user.id, allMessages, context.fina_memory || ''),
+      ])
+      return NextResponse.json({ response })
+    }
     const lastMessage = allMessages.filter(m => m.role === 'user').at(-1)?.content || ''
     if (!mode || mode === 'chat') {
       const actionText = resolveActionTextFromConversation(allMessages, lastMessage)
       const action = await tryHandleTransactionAction(supabase, user.id, actionText)
-      if (action) return NextResponse.json({ response: action })
+      if (action) return respond(action)
     }
 
     if (mode === 'purchase' && purchaseItem && purchasePrice) {
-      return NextResponse.json({ response: await analyzePurchase(purchaseItem, purchasePrice, context) })
+      return respond(await analyzePurchase(purchaseItem, purchasePrice, context))
     }
     if (mode === 'investment' && investmentQuestion) {
-      return NextResponse.json({ response: await analyzeInvestments(context, investmentQuestion) })
+      return respond(await analyzeInvestments(context, investmentQuestion))
     }
 
-    return NextResponse.json({ response: await chatWithFina(messages as AIMessage[], context) })
+    return respond(await chatWithFina(allMessages, context))
   } catch (error) {
     console.error('AI API error:', error)
     return NextResponse.json({ error: 'Erro interno. Tente novamente.' }, { status: 500 })
   }
+}
+
+export async function GET() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data } = await supabase
+    .from('ai_conversations')
+    .select('messages')
+    .eq('created_by', user.id)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return NextResponse.json({ messages: normalizeMessages(data?.messages) })
+}
+
+export async function DELETE() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { error } = await supabase.from('ai_conversations').delete().eq('created_by', user.id)
+  if (error) return NextResponse.json({ error: 'Nao foi possivel iniciar uma nova conversa' }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
+function normalizeMessages(messages: unknown): AIMessage[] {
+  if (!Array.isArray(messages)) return []
+  return messages
+    .filter((message): message is AIMessage => message?.role === 'user' || message?.role === 'assistant')
+    .map(message => ({
+      role: message.role,
+      content: String(message.content || '').slice(0, 6000),
+      timestamp: message.timestamp || new Date().toISOString(),
+    }))
+    .slice(-60)
+}
+
+async function getHouseholdId(supabase: any, userId: string) {
+  const { data } = await supabase.from('profiles').select('household_id').eq('id', userId).single()
+  return data?.household_id as string | undefined
+}
+
+async function saveConversation(supabase: any, userId: string, messages: AIMessage[], response: string, context: AIContext) {
+  const householdId = await getHouseholdId(supabase, userId)
+  if (!householdId) return
+  const storedMessages = normalizeMessages([...messages, { role: 'assistant', content: response, timestamp: new Date().toISOString() }])
+  const snapshot = {
+    cash_balance: context.cash_balance,
+    projected_cash_balance: context.projected_cash_balance,
+    projected_month_balance: context.projected_month_balance,
+  }
+  const { data: latest } = await supabase
+    .from('ai_conversations')
+    .select('id')
+    .eq('created_by', userId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (latest?.id) {
+    await supabase.from('ai_conversations').update({ messages: storedMessages, context_snapshot: snapshot }).eq('id', latest.id)
+    return
+  }
+
+  await supabase.from('ai_conversations').insert({
+    household_id: householdId,
+    created_by: userId,
+    messages: storedMessages,
+    context_snapshot: snapshot,
+  })
+}
+
+async function refreshFinancialMemory(supabase: any, userId: string, messages: AIMessage[], existingMemory: string) {
+  if (!messages.some(message => message.role === 'user')) return
+  const householdId = await getHouseholdId(supabase, userId)
+  if (!householdId) return
+  const profileSummary = await updateFinancialMemory(existingMemory, messages)
+  if (!profileSummary || profileSummary === existingMemory) return
+  await supabase.from('fina_financial_profiles').upsert({
+    household_id: householdId,
+    updated_by: userId,
+    profile_summary: profileSummary,
+  }, { onConflict: 'household_id' })
 }
 function parseMoney(text: string) {
   const match = text.match(/[-+]?\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:[,.]\d{1,2})?|\d+)/i)

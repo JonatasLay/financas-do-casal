@@ -234,6 +234,18 @@ CREATE TABLE ai_conversations (
 );
 
 -- ============================================================
+-- FINA FINANCIAL PROFILE (memoria qualitativa do casal)
+-- ============================================================
+CREATE TABLE fina_financial_profiles (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  household_id UUID REFERENCES households(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  profile_summary TEXT NOT NULL DEFAULT '',
+  updated_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
 
@@ -251,6 +263,7 @@ ALTER TABLE savings_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE investments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE investment_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fina_financial_profiles ENABLE ROW LEVEL SECURITY;
 
 -- Helper function: retorna o household_id do usuário logado
 CREATE OR REPLACE FUNCTION auth_household_id()
@@ -321,6 +334,9 @@ CREATE POLICY "household_access" ON investment_transactions
   WITH CHECK (household_id = auth_household_id());
 
 CREATE POLICY "household_access" ON ai_conversations
+  FOR ALL USING (household_id = auth_household_id());
+
+CREATE POLICY "household_access" ON fina_financial_profiles
   FOR ALL USING (household_id = auth_household_id());
 
 -- ============================================================
@@ -460,6 +476,7 @@ $$ LANGUAGE plpgsql SET search_path = public;
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON transactions FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON goals FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER update_fina_financial_profiles_updated_at BEFORE UPDATE ON fina_financial_profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER update_savings_updated_at BEFORE UPDATE ON savings FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER update_investments_updated_at BEFORE UPDATE ON investments FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER protect_profile_admin_fields BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION protect_profile_admin_fields();
@@ -570,3 +587,5 @@ AFTER INSERT OR UPDATE OR DELETE ON transactions
 FOR EACH ROW EXECUTE FUNCTION apply_transaction_cash_balance();
 CREATE INDEX idx_goals_household ON goals(household_id);
 CREATE INDEX idx_invites_household_status ON household_invites(household_id, status);
+CREATE INDEX idx_ai_conversations_created_by_updated ON ai_conversations(created_by, updated_at DESC);
+CREATE INDEX idx_fina_financial_profiles_household ON fina_financial_profiles(household_id);
