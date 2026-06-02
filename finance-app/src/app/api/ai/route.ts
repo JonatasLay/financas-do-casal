@@ -18,10 +18,13 @@ export async function POST(req: NextRequest) {
     const allMessages = normalizeMessages(messages)
     const context = await buildSharedFinancialContext(supabase, user.id)
     const respond = async (response: string) => {
-      await Promise.allSettled([
+      const persistenceResults = await Promise.allSettled([
         saveConversation(supabase, user.id, allMessages, response, context),
         refreshFinancialMemory(supabase, user.id, allMessages, context.fina_memory || ''),
       ])
+      for (const result of persistenceResults) {
+        if (result.status === 'rejected') console.error('Fina persistence error:', result.reason)
+      }
       return NextResponse.json({ response })
     }
     const lastMessage = allMessages.filter(m => m.role === 'user').at(-1)?.content || ''
@@ -50,7 +53,7 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('ai_conversations')
     .select('messages')
     .eq('created_by', user.id)
@@ -58,6 +61,10 @@ export async function GET() {
     .limit(1)
     .maybeSingle()
 
+  if (error) {
+    console.error('Fina history lookup error:', error)
+    return NextResponse.json({ error: 'Nao foi possivel carregar o historico' }, { status: 500 })
+  }
   return NextResponse.json({ messages: normalizeMessages(data?.messages) })
 }
 
@@ -97,25 +104,28 @@ async function saveConversation(supabase: any, userId: string, messages: AIMessa
     projected_cash_balance: context.projected_cash_balance,
     projected_month_balance: context.projected_month_balance,
   }
-  const { data: latest } = await supabase
+  const { data: latest, error: latestError } = await supabase
     .from('ai_conversations')
     .select('id')
     .eq('created_by', userId)
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+  if (latestError) throw latestError
 
   if (latest?.id) {
-    await supabase.from('ai_conversations').update({ messages: storedMessages, context_snapshot: snapshot }).eq('id', latest.id)
+    const { error } = await supabase.from('ai_conversations').update({ messages: storedMessages, context_snapshot: snapshot }).eq('id', latest.id)
+    if (error) throw error
     return
   }
 
-  await supabase.from('ai_conversations').insert({
+  const { error } = await supabase.from('ai_conversations').insert({
     household_id: householdId,
     created_by: userId,
     messages: storedMessages,
     context_snapshot: snapshot,
   })
+  if (error) throw error
 }
 
 async function refreshFinancialMemory(supabase: any, userId: string, messages: AIMessage[], existingMemory: string) {
@@ -124,11 +134,12 @@ async function refreshFinancialMemory(supabase: any, userId: string, messages: A
   if (!householdId) return
   const profileSummary = await updateFinancialMemory(existingMemory, messages)
   if (!profileSummary || profileSummary === existingMemory) return
-  await supabase.from('fina_financial_profiles').upsert({
+  const { error } = await supabase.from('fina_financial_profiles').upsert({
     household_id: householdId,
     updated_by: userId,
     profile_summary: profileSummary,
   }, { onConflict: 'household_id' })
+  if (error) throw error
 }
 function parseMoney(text: string) {
   const match = text.match(/[-+]?\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:[,.]\d{1,2})?|\d+)/i)

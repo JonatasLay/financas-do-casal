@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { createClient } from '@/lib/supabase/client'
 import { Bot, Brain, CircleDollarSign, Eraser, Landmark, PiggyBank, Send, Sparkles, Target, WalletCards } from 'lucide-react'
@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import type { AIMessage } from '@/types'
 
 const visibleMessage = (content: string) => content.replace(/\[(?:CONFIRMAR_LANCAMENTO|EXCLUIR_ID:[^\]]+)\]\n?/g, '')
+const chatStorageKey = (userId: string) => `fina-chat:${userId}`
 
 const QUICK_PROMPTS = [
   { icon: WalletCards, label: 'Planejar o mês', text: 'Analise nosso mês atual por completo e me diga as três ações mais importantes para melhorar nosso caixa.' },
@@ -25,7 +26,7 @@ function initialMessage(name?: string): AIMessage {
 }
 
 export default function FinaPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [profile, setProfile] = useState<any>(null)
   const [messages, setMessages] = useState<AIMessage[]>([])
   const [input, setInput] = useState('')
@@ -43,11 +44,24 @@ export default function FinaPage() {
       ])
       setProfile(currentProfile)
       const history = historyResponse.ok ? await historyResponse.json() : { messages: [] }
-      setMessages(history.messages?.length ? history.messages : [initialMessage(currentProfile?.name)])
+      const stored = sessionStorage.getItem(chatStorageKey(user.id))
+      let cachedMessages: AIMessage[] = []
+      try {
+        cachedMessages = stored ? JSON.parse(stored) as AIMessage[] : []
+      } catch {
+        sessionStorage.removeItem(chatStorageKey(user.id))
+      }
+      const remoteMessages = history.messages || []
+      setMessages(cachedMessages.length > remoteMessages.length ? cachedMessages : remoteMessages.length ? remoteMessages : [initialMessage(currentProfile?.name)])
       setHistoryLoading(false)
     }
     load()
   }, [supabase])
+
+  useEffect(() => {
+    if (!profile?.id || messages.length === 0) return
+    sessionStorage.setItem(chatStorageKey(profile.id), JSON.stringify(messages.slice(-60)))
+  }, [messages, profile?.id])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -86,6 +100,7 @@ export default function FinaPage() {
   async function resetConversation() {
     const response = await fetch('/api/ai', { method: 'DELETE' })
     if (!response.ok) return void toast.error('Não consegui iniciar uma nova conversa.')
+    if (profile?.id) sessionStorage.removeItem(chatStorageKey(profile.id))
     setMessages([initialMessage(profile?.name)])
     toast.success('Nova conversa iniciada. A memória financeira foi preservada.')
   }
