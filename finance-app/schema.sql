@@ -89,6 +89,7 @@ CREATE TABLE transactions (
   household_id UUID REFERENCES households(id) ON DELETE CASCADE NOT NULL,
   created_by UUID REFERENCES profiles(id),
   date DATE NOT NULL DEFAULT CURRENT_DATE,
+  settled_at DATE,
   description TEXT NOT NULL,
   amount DECIMAL(12,2) NOT NULL,
   type TEXT NOT NULL CHECK (type IN ('receita', 'despesa', 'fatura', 'transferencia')),
@@ -544,7 +545,7 @@ BEGIN
       OLD.status,
       OLD.amount,
       old_bank.type,
-      OLD.date,
+      COALESCE(OLD.settled_at, OLD.date),
       old_bank.balance_tracking_started_at,
       OLD.affects_household_cash
     );
@@ -563,7 +564,7 @@ BEGIN
       NEW.status,
       NEW.amount,
       new_bank.type,
-      NEW.date,
+      COALESCE(NEW.settled_at, NEW.date),
       new_bank.balance_tracking_started_at,
       NEW.affects_household_cash
     );

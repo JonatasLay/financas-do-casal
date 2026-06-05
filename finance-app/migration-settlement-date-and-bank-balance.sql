@@ -1,18 +1,18 @@
 -- ============================================================
--- MIGRATION: integridade final de caixa e controle da Neusa
+-- MIGRATION: data efetiva de pagamento e integridade do saldo
 -- Execute este arquivo no SQL Editor do Supabase.
 -- ============================================================
 
 ALTER TABLE public.transactions
-  ADD COLUMN IF NOT EXISTS affects_household_cash BOOLEAN NOT NULL DEFAULT TRUE,
   ADD COLUMN IF NOT EXISTS settled_at DATE;
 
-COMMENT ON COLUMN public.transactions.affects_household_cash IS
-  'Define se o lancamento movimenta o caixa real do casal. Use FALSE para despesas da Neusa registradas apenas para controle.';
+COMMENT ON COLUMN public.transactions.settled_at IS
+  'Data efetiva em que a receita ou despesa movimentou o caixa. A coluna date continua representando compra ou vencimento.';
 
--- Reverte do saldo atual o que eventualmente foi aplicado por despesas
--- diretas da Neusa mantidas apenas para acompanhamento.
-WITH neusa_cash_deltas AS (
+-- Corrige uma unica vez pagamentos ja marcados como realizados que o
+-- trigger anterior ignorou porque o vencimento era futuro ou anterior
+-- ao inicio do acompanhamento da conta.
+WITH missed_settlements AS (
   SELECT
     b.id AS bank_id,
     SUM(
@@ -22,61 +22,44 @@ WITH neusa_cash_deltas AS (
         ELSE 0
       END
     ) AS delta
-  FROM public.banks b
-  JOIN public.transactions t ON t.bank_id = b.id
-  WHERE b.type <> 'credito'
-    AND t.responsible_party = 'sogra'
-    AND t.affects_household_cash = TRUE
+  FROM public.transactions t
+  JOIN public.banks b ON b.id = t.bank_id
+  WHERE t.settled_at IS NULL
     AND t.status = 'realizado'
-    AND t.date <= (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE
-    AND t.date >= COALESCE(b.balance_tracking_started_at::DATE, (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE)
+    AND b.type <> 'credito'
+    AND COALESCE(t.affects_household_cash, TRUE)
+    AND t.updated_at::DATE >= COALESCE(b.balance_tracking_started_at::DATE, CURRENT_DATE)
+    AND (
+      t.date > (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE
+      OR t.date < COALESCE(b.balance_tracking_started_at::DATE, (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE)
+    )
   GROUP BY b.id
 )
 UPDATE public.banks b
-SET current_balance = COALESCE(b.current_balance, 0) - neusa_cash_deltas.delta
-FROM neusa_cash_deltas
-WHERE b.id = neusa_cash_deltas.bank_id;
+SET current_balance = COALESCE(b.current_balance, 0) + missed_settlements.delta
+FROM missed_settlements
+WHERE b.id = missed_settlements.bank_id;
 
--- Despesas diretas da Neusa cadastradas para acompanhamento nao devem
--- movimentar as contas do casal. Compras dela nos cartoes continuam
--- registradas normalmente para compor fatura e reembolso.
+-- Pagamentos ignorados pelo modelo antigo recebem hoje como data efetiva.
 UPDATE public.transactions t
-SET affects_household_cash = FALSE
+SET settled_at = (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE
 FROM public.banks b
 WHERE t.bank_id = b.id
-  AND t.responsible_party = 'sogra'
-  AND b.type <> 'credito';
+  AND t.settled_at IS NULL
+  AND t.status = 'realizado'
+  AND b.type <> 'credito'
+  AND COALESCE(t.affects_household_cash, TRUE)
+  AND t.updated_at::DATE >= COALESCE(b.balance_tracking_started_at::DATE, CURRENT_DATE)
+  AND (
+    t.date > (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE
+    OR t.date < COALESCE(b.balance_tracking_started_at::DATE, (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE)
+  );
 
-CREATE OR REPLACE FUNCTION public.transaction_cash_delta(
-  p_type TEXT,
-  p_status TEXT,
-  p_amount NUMERIC,
-  p_bank_type TEXT,
-  p_transaction_date DATE,
-  p_tracking_started_at TIMESTAMPTZ,
-  p_affects_household_cash BOOLEAN DEFAULT TRUE
-) RETURNS NUMERIC AS $$
-BEGIN
-  IF p_status <> 'realizado'
-    OR p_bank_type = 'credito'
-    OR NOT COALESCE(p_affects_household_cash, TRUE)
-    OR p_transaction_date > (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE
-    OR p_transaction_date < COALESCE(p_tracking_started_at::DATE, (CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::DATE)
-  THEN
-    RETURN 0;
-  END IF;
-
-  IF p_type = 'receita' THEN
-    RETURN COALESCE(p_amount, 0);
-  END IF;
-
-  IF p_type IN ('despesa', 'fatura') THEN
-    RETURN -COALESCE(p_amount, 0);
-  END IF;
-
-  RETURN 0;
-END;
-$$ LANGUAGE plpgsql SET search_path = public;
+-- Demais lancamentos realizados preservam a propria data como liquidacao.
+UPDATE public.transactions
+SET settled_at = date
+WHERE status = 'realizado'
+  AND settled_at IS NULL;
 
 CREATE OR REPLACE FUNCTION public.apply_transaction_cash_balance()
 RETURNS TRIGGER AS $$
@@ -136,3 +119,7 @@ DROP TRIGGER IF EXISTS transactions_cash_balance_trigger ON public.transactions;
 CREATE TRIGGER transactions_cash_balance_trigger
 AFTER INSERT OR UPDATE OR DELETE ON public.transactions
 FOR EACH ROW EXECUTE FUNCTION public.apply_transaction_cash_balance();
+
+CREATE INDEX IF NOT EXISTS idx_transactions_settled_at
+  ON public.transactions(household_id, settled_at DESC)
+  WHERE settled_at IS NOT NULL;

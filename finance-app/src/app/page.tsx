@@ -441,6 +441,7 @@ export default function DashboardPage() {
     fetchData()
     const channel = supabase.channel('dashboard-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'banks' }, fetchData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'goals' }, fetchData)
       .subscribe()
     return () => { supabase.removeChannel(channel) }

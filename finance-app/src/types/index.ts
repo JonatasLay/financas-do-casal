@@ -33,6 +33,7 @@ export interface Bank {
 
 export interface Transaction {
   id: string; household_id: string; created_by: string; date: string
+  settled_at?: string | null
   description: string; amount: number; type: TransactionType
   category_id: string | null; bank_id: string | null; status: TransactionStatus
   notes: string | null; is_recurring: boolean; month: string; year: number; created_at: string

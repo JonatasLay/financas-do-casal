@@ -181,9 +181,14 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       const perInstallmentAmount = divideAmount
         ? Number((amountFloat / safeInstallments).toFixed(2))
         : amountFloat
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const settledAt = status === 'realizado'
+        ? editTransaction?.settled_at || (date <= today ? date : today)
+        : null
 
       const payload = {
         date,
+        settled_at: settledAt,
         description: description.trim(),
         amount: perInstallmentAmount,
         type,
@@ -217,6 +222,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
             return {
               ...payload,
               status: 'agendado' as const,
+              settled_at: null,
               date: format(addMonths(startDate, index + 1), 'yyyy-MM-dd'),
               recurring_group_id: editRecurringGroupId,
               recurring_index: recurringIndex,
@@ -249,6 +255,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
             ...payload,
             amount,
             status: isRecurring && index > 0 ? 'agendado' as const : payload.status,
+            settled_at: isRecurring && index > 0 ? null : payload.settled_at,
             date: format(addMonths(startDate, index), 'yyyy-MM-dd'),
             description: !isRecurring && rowCount > 1
               ? `${description.trim()} (${installmentLabel} ${String(installmentNumber).padStart(2, '0')}/${String(rowCount).padStart(2, '0')})`

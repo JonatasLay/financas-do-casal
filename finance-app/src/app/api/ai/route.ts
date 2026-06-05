@@ -274,6 +274,8 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
   const date = structured.date || (text.includes('ontem')
     ? format(subDays(new Date(), 1), 'yyyy-MM-dd')
     : format(new Date(), 'yyyy-MM-dd'))
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const transactionStatus = date > today ? 'agendado' : 'realizado'
 
   if ((text.includes('cartao') || text.includes('cartão')) && !bank) {
     return 'Qual cartão devo usar? Diga o nome exato, por exemplo: "Magazine Luiza" ou "Cartão BB".'
@@ -299,12 +301,13 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
     household_id: profile.household_id,
     created_by: profile.id,
     date,
+    settled_at: transactionStatus === 'realizado' ? date : null,
     description: structured.description || description,
     amount,
     type: transactionType,
     category_id: category?.id || null,
     bank_id: bank?.id || null,
-    status: 'realizado',
+    status: transactionStatus,
     notes: 'Lançado pela Fina via chat',
     is_recurring: false,
     responsible_party: text.includes('neusa') ? 'sogra' : 'casal',

@@ -282,23 +282,27 @@ export function StatementImportModal({
 
     setSaving(true)
     const today = format(new Date(), 'yyyy-MM-dd')
-    const payload = selectedRows.map(row => ({
-      household_id: householdId,
-      created_by: profileId,
-      date: row.date,
-      description: row.description.trim(),
-      amount: row.amount,
-      type: row.type,
-      category_id: row.category_id || (row.type === 'receita' ? incomeCategoryId || null : expenseCategoryId || null),
-      bank_id: bankId || null,
-      status: selectedBank?.type !== 'credito' && row.date > today ? 'agendado' : 'realizado',
-      notes: 'Importado por extrato CSV',
-      is_recurring: false,
-      responsible_party: responsibleParty,
-      affects_household_cash: responsibleParty === 'casal',
-      is_reimbursed: false,
-      payment_method: paymentMethod,
-    }))
+    const payload = selectedRows.map(row => {
+      const status = selectedBank?.type !== 'credito' && row.date > today ? 'agendado' : 'realizado'
+      return {
+        household_id: householdId,
+        created_by: profileId,
+        date: row.date,
+        settled_at: status === 'realizado' ? row.date : null,
+        description: row.description.trim(),
+        amount: row.amount,
+        type: row.type,
+        category_id: row.category_id || (row.type === 'receita' ? incomeCategoryId || null : expenseCategoryId || null),
+        bank_id: bankId || null,
+        status,
+        notes: 'Importado por extrato CSV',
+        is_recurring: false,
+        responsible_party: responsibleParty,
+        affects_household_cash: responsibleParty === 'casal',
+        is_reimbursed: false,
+        payment_method: paymentMethod,
+      }
+    })
     const { error } = await supabase.from('transactions').insert(payload)
     setSaving(false)
     if (error) return void toast.error('Não consegui importar o extrato')

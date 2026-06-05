@@ -439,6 +439,7 @@ export default function TransactionsPage() {
   useEffect(() => {
     const channel = supabase.channel('transactions-page')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'banks' }, fetchData)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [fetchData])
@@ -463,10 +464,14 @@ export default function TransactionsPage() {
   }
 
   const handlePay = async (tx: Transaction) => {
-    const { error } = await supabase.from('transactions').update({ status: 'realizado' }).eq('id', tx.id)
+    if (!tx.bank_id) return void toast.error('Selecione a conta usada antes de marcar como pago')
+    const { error } = await supabase.from('transactions').update({
+      status: 'realizado',
+      settled_at: format(new Date(), 'yyyy-MM-dd'),
+    }).eq('id', tx.id)
     if (error) return void toast.error('Erro ao atualizar status')
     toast.success(tx.type === 'receita' ? 'Recebimento realizado' : 'Pagamento realizado')
-    setTransactions(prev => prev.map(item => item.id === tx.id ? { ...item, status: 'realizado' } : item))
+    await fetchData()
   }
 
   const handleReimburse = async (tx: Transaction) => {
