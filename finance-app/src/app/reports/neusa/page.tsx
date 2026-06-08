@@ -5,9 +5,11 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { addMonths, endOfMonth, format, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ArrowLeft, Printer, ReceiptText } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, Clock, Printer, ReceiptText } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { BankLogo } from '@/components/ui/BankLogo'
+import { NeusaPaymentModal } from '@/components/neusa/NeusaPaymentModal'
 import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
 import {
   getNeusaShareAmount,
@@ -57,6 +59,7 @@ function SectionRow({
 export default function NeusaReportPage() {
   const supabase = useMemo(() => createClient(), [])
   const params = useSearchParams()
+  const router = useRouter()
   const now = new Date()
   const month = Number(params.get('month')) || now.getMonth() + 1
   const year = Number(params.get('year')) || now.getFullYear()
@@ -67,6 +70,13 @@ export default function NeusaReportPage() {
   const [creditTransactions, setCreditTransactions] = useState<Transaction[]>([])
   const [banks, setBanks] = useState<Bank[]>([])
   const [loading, setLoading] = useState(true)
+  const [showPayment, setShowPayment] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const navigateMonth = (delta: number) => {
+    const d = delta > 0 ? addMonths(selectedDate, 1) : subMonths(selectedDate, 1)
+    router.push(`/reports/neusa?month=${d.getMonth() + 1}&year=${d.getFullYear()}`)
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -112,7 +122,7 @@ export default function NeusaReportPage() {
     }
 
     load()
-  }, [selectedDate])
+  }, [selectedDate, refreshKey])
 
   const bankById = new Map(banks.map(bank => [bank.id, bank]))
   const isCreditTx = (tx: Transaction) => bankById.get(tx.bank_id || '')?.type === 'credito'
@@ -156,6 +166,12 @@ export default function NeusaReportPage() {
   const pendingPaidByCouple = directNeusaPaidByCouple.filter(tx => !tx.is_reimbursed).reduce((sum, tx) => sum + Number(tx.amount), 0)
   const receivableGross = pendingDirectCard + pendingPaidByCouple + sharedTotal
   const receivableNet = Math.max(0, receivableGross - reimbursementTotal)
+  const isSettled = receivableNet < 0.01 && (directCardTotal + paidByCoupleTotal + sharedTotal) > 0
+
+  const pendingIds = [
+    ...directCardRows.filter(tx => !tx.is_reimbursed).map(tx => tx.id),
+    ...directNeusaPaidByCouple.filter(tx => !tx.is_reimbursed).map(tx => tx.id),
+  ]
 
   const title = `Relatorio da Neuza - ${format(selectedDate, 'MMMM yyyy', { locale: ptBR })}`
 
@@ -225,6 +241,7 @@ export default function NeusaReportPage() {
   ].filter(section => section.rows.length > 0)
 
   return (
+    <>
     <main className="min-h-screen p-4 md:p-8 print:p-0" style={{ background: '#08080F' }}>
       <style>{`
         @media print {
@@ -236,15 +253,53 @@ export default function NeusaReportPage() {
         }
       `}</style>
 
-      <div className="no-print max-w-5xl mx-auto mb-4 flex items-center justify-between gap-3">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: '#A5B4FC' }}>
-          <ArrowLeft className="w-4 h-4" />
-          Voltar
-        </Link>
-        <button onClick={() => window.print()} className="btn-primary inline-flex items-center gap-2">
-          <Printer className="w-4 h-4" />
-          Imprimir / Salvar PDF
-        </button>
+      <div className="no-print max-w-5xl mx-auto mb-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: '#A5B4FC' }}>
+            <ArrowLeft className="w-4 h-4" />
+            Voltar
+          </Link>
+          <button onClick={() => window.print()} className="btn-primary inline-flex items-center gap-2">
+            <Printer className="w-4 h-4" />
+            Imprimir / Salvar PDF
+          </button>
+        </div>
+
+        {/* Month navigation + status */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigateMonth(-1)} className="p-2 rounded-xl transition-colors"
+              style={{ background: 'rgba(255,255,255,0.06)', color: '#94A3B8' }}>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-semibold capitalize" style={{ color: '#F1F5F9', minWidth: 120, textAlign: 'center' }}>
+              {format(selectedDate, 'MMMM yyyy', { locale: ptBR })}
+            </span>
+            <button onClick={() => navigateMonth(1)} className="p-2 rounded-xl transition-colors"
+              style={{ background: 'rgba(255,255,255,0.06)', color: '#94A3B8' }}>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {!loading && (
+              isSettled ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                  style={{ background: 'rgba(52,211,153,0.12)', color: '#34D399', border: '1px solid rgba(52,211,153,0.25)' }}>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Quitado
+                </div>
+              ) : receivableNet > 0 ? (
+                <button onClick={() => setShowPayment(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+                  style={{ background: 'rgba(244,114,182,0.18)', color: '#F9A8D4', border: '1px solid rgba(244,114,182,0.35)' }}>
+                  <Clock className="w-3.5 h-3.5" />
+                  Pendente {brl(receivableNet)} — Registrar
+                </button>
+              ) : null
+            )}
+          </div>
+        </div>
       </div>
 
       <section
@@ -315,5 +370,24 @@ export default function NeusaReportPage() {
         )}
       </section>
     </main>
+
+    {profile?.household_id && profile?.id && (
+      <NeusaPaymentModal
+        open={showPayment}
+        onClose={() => setShowPayment(false)}
+        onSuccess={() => { setShowPayment(false); setRefreshKey(k => k + 1) }}
+        month={selectedDate}
+        receivableNet={receivableNet}
+        cardTotal={directCardTotal}
+        directTotal={paidByCoupleTotal}
+        sharedTotal={sharedTotal}
+        receivedSoFar={reimbursementTotal}
+        pendingIds={pendingIds}
+        banks={banks}
+        householdId={profile.household_id}
+        userId={profile.id}
+      />
+    )}
+    </>
   )
 }

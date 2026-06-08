@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
+import { NeusaPaymentModal } from '@/components/neusa/NeusaPaymentModal'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { ExpenseChart } from '@/components/dashboard/ExpenseChart'
 import { CategoryChart } from '@/components/dashboard/CategoryChart'
@@ -240,10 +241,10 @@ function QuickStats({ income, expenses, balance, prevBalance, loading }: {
   )
 }
 
-function MonthlyCommandCenter({ income, plannedIncome, reimbursementIncome, expenses, plannedCashExpenses, plannedCreditInvoices, balance, projectedBalance, cashBalance, projectedCashBalance, prevBalance, neusaTotal, neusaReceivable, historical, loading, onOpen }: {
+function MonthlyCommandCenter({ income, plannedIncome, reimbursementIncome, expenses, plannedCashExpenses, plannedCreditInvoices, balance, projectedBalance, cashBalance, projectedCashBalance, prevBalance, neusaTotal, neusaReceivable, historical, loading, onOpen, onNeusaPayment }: {
   income: number; plannedIncome: number; reimbursementIncome: number; expenses: number; plannedCashExpenses: number; plannedCreditInvoices: number
   balance: number; projectedBalance: number; cashBalance: number; projectedCashBalance: number; prevBalance: number
-  neusaTotal: number; neusaReceivable: number; historical: boolean; loading: boolean; onOpen: (kind: DetailKind) => void
+  neusaTotal: number; neusaReceivable: number; historical: boolean; loading: boolean; onOpen: (kind: DetailKind) => void; onNeusaPayment: () => void
 }) {
   const balanceDelta = prevBalance !== 0 ? ((projectedBalance - prevBalance) / Math.abs(prevBalance)) * 100 : 0
   const deltaPositive = balanceDelta >= 0
@@ -289,13 +290,22 @@ function MonthlyCommandCenter({ income, plannedIncome, reimbursementIncome, expe
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         {cards.map(card => (
-          <button key={card.kind} type="button" onClick={() => onOpen(card.kind)}
-            className="rounded-xl p-3 text-left transition-transform active:scale-[0.99]"
-            style={{ background: `${card.color}10`, border: `1px solid ${card.color}30` }}>
-            <p className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: card.color }}>{card.label}</p>
-            <p className="text-base font-bold font-mono-nums mt-1" style={{ color: '#F1F5F9' }}>{brl(card.value)}</p>
-            <p className="text-[10px] mt-1 leading-tight" style={{ color: '#64748B' }}>{card.detail}</p>
-          </button>
+          <div key={card.kind} className="relative">
+            <button type="button" onClick={() => onOpen(card.kind)}
+              className="w-full rounded-xl p-3 text-left transition-transform active:scale-[0.99]"
+              style={{ background: `${card.color}10`, border: `1px solid ${card.color}30` }}>
+              <p className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: card.color }}>{card.label}</p>
+              <p className="text-base font-bold font-mono-nums mt-1" style={{ color: '#F1F5F9' }}>{brl(card.value)}</p>
+              <p className="text-[10px] mt-1 leading-tight" style={{ color: '#64748B' }}>{card.detail}</p>
+            </button>
+            {card.kind === 'neusa' && neusaReceivable > 0 && (
+              <button type="button" onClick={e => { e.stopPropagation(); onNeusaPayment() }}
+                className="mt-1.5 w-full rounded-lg py-1.5 text-[10px] font-bold tracking-wide transition-all"
+                style={{ background: 'rgba(244,114,182,0.18)', color: '#F9A8D4', border: '1px solid rgba(244,114,182,0.3)' }}>
+                + Registrar pagamento
+              </button>
+            )}
+          </div>
         ))}
       </div>
     </div>
@@ -351,6 +361,7 @@ export default function DashboardPage() {
   const [profile, setProfile]   = useState<any>(null)
   const [loading, setLoading]   = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showNeusaPayment, setShowNeusaPayment] = useState(false)
   const [prevBalance, setPrevBalance] = useState(0)
   const [detailKind, setDetailKind] = useState<DetailKind | null>(null)
 
@@ -630,7 +641,7 @@ export default function DashboardPage() {
 
         <div className="space-y-4 pb-24 md:pb-6">
 
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 1: Greeting + dollar rate + online indicator Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* Row 1: Greeting + dollar rate + online indicator */}
           <motion.div {...fadeUp(0)} className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-lg font-bold" style={{ color: '#F1F5F9' }}>
@@ -646,7 +657,7 @@ export default function DashboardPage() {
             </div>
           </motion.div>
 
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 2: Month selector Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* Row 2: Month selector */}
           <motion.div {...fadeUp(0.05)}>
             <MonthSelector value={currentDate} onChange={d => { setCurrentDate(d); setLoading(true) }} />
           </motion.div>
@@ -672,7 +683,7 @@ export default function DashboardPage() {
             <AccountBalancesCard banks={banks} loading={loading} />
           </motion.div>
 
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 3: Main balance card (quick stats) Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* Row 3: Main balance card (quick stats) */}
           <motion.div {...fadeUp(0.08)}>
             <MonthlyCommandCenter
               income={income}
@@ -691,10 +702,11 @@ export default function DashboardPage() {
               historical={isHistoricalMonth}
               loading={loading}
               onOpen={setDetailKind}
+              onNeusaPayment={() => setShowNeusaPayment(true)}
             />
           </motion.div>
 
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 4.5: Future preview Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* Row 4.5: Future preview */}
           <motion.div {...fadeUp(0.135)}>
             <FuturePreview
               targetMonth={addMonths(currentDate, 1)}
@@ -706,30 +718,30 @@ export default function DashboardPage() {
             />
           </motion.div>
 
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 5: PatrimÃ´nio (savings + investments) Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* Row 5: Patrimnio (savings + investments) */}
           {profile?.household_id && (
             <motion.div {...fadeUp(0.15)}>
               <PatrimonyCard householdId={profile.household_id} loading={loading} />
             </motion.div>
           )}
 
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 7: Charts Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* Row 7: Charts */}
           <motion.div {...fadeUp(0.21)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ExpenseChart data={monthlyHistory} loading={loading} />
             <CategoryChart data={byCategory} loading={loading} />
           </motion.div>
 
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 8: Budgets Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* Row 8: Budgets */}
           <motion.div {...fadeUp(0.24)}>
             <BudgetsMini budgets={budgets} transactions={coupleBudgetTransactions} loading={loading} />
           </motion.div>
 
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 9: Credit cards Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* Row 9: Credit cards */}
           <motion.div {...fadeUp(0.27)}>
             <CreditCardSummary banks={banks} transactions={creditInvoiceTransactions} loading={loading} selectedMonth={currentDate} />
           </motion.div>
 
-          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 10: Goals Ã¢â€â‚¬Ã¢â€â‚¬ */}
+          {/* Row 10: Goals */}
           <motion.div {...fadeUp(0.30)}>
             <GoalsMini goals={goals.slice(0, 3)} loading={loading} />
           </motion.div>
@@ -738,6 +750,26 @@ export default function DashboardPage() {
       </div>
 
       <AddTransactionModal open={showAddModal} onClose={() => setShowAddModal(false)} onSuccess={fetchData} />
+      {profile?.household_id && (
+        <NeusaPaymentModal
+          open={showNeusaPayment}
+          onClose={() => setShowNeusaPayment(false)}
+          onSuccess={fetchData}
+          month={currentDate}
+          receivableNet={neusaReceivable}
+          cardTotal={neusaCardTotal}
+          directTotal={neusaDirectPaidByCoupleTotal}
+          sharedTotal={neusaSharedTotal}
+          receivedSoFar={neusaReceivedTotal}
+          pendingIds={[
+            ...neusaCardTransactions.filter(t => !t.is_reimbursed).map(t => t.id),
+            ...neusaDirectPaidByCoupleTransactions.filter(t => !t.is_reimbursed).map(t => t.id),
+          ]}
+          banks={banks}
+          householdId={profile.household_id}
+          userId={profile.id}
+        />
+      )}
       <DetailModal
         open={!!detailKind}
         title={detailKind ? details[detailKind].title : ''}
