@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, CreditCard } from 'lucide-react'
+import { AlertCircle, CheckCircle2, CreditCard } from 'lucide-react'
 import { BankLogo } from '@/components/ui/BankLogo'
 import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
 import {
@@ -10,13 +10,17 @@ import {
   isCoupleTransaction,
   isNeusaTransaction,
 } from '@/lib/finance-summary'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import type { Bank, Transaction } from '@/types'
 
 interface Props {
   banks: Bank[]
   transactions: Transaction[]
+  payments?: Transaction[]
   loading?: boolean
   selectedMonth?: Date
+  onPayFatura?: (card: Bank, amount: number) => void
 }
 
 const brl = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -41,7 +45,7 @@ function CardSkeleton() {
   )
 }
 
-export function CreditCardSummary({ banks, transactions, loading, selectedMonth = new Date() }: Props) {
+export function CreditCardSummary({ banks, transactions, payments = [], loading, selectedMonth = new Date(), onPayFatura }: Props) {
   const creditCards = banks.filter(bank => bank.type === 'credito')
 
   if (!loading && creditCards.length === 0) return null
@@ -149,6 +153,10 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
               const cardPct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0
               const color = card.color || '#818CF8'
               const cardUsageColor = cardPct >= 90 ? '#F87171' : cardPct >= 70 ? '#FBBF24' : color
+              const cardPayments = payments.filter(p => p.target_bank_id === card.id)
+              const paidTotal = cardPayments.reduce((s, p) => s + Number(p.amount), 0)
+              const isPaid = paidTotal >= spent - 0.01 && spent > 0
+              const lastPayment = cardPayments.sort((a, b) => b.date.localeCompare(a.date))[0]
 
               return (
                 <div key={card.id} className="p-3.5 rounded-2xl space-y-2.5" style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
@@ -199,6 +207,33 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
                         <p className="text-[11px] font-bold font-mono-nums" style={{ color: neusaPending > 0 ? '#FB923C' : '#64748B' }}>{brl(neusaPending)}</p>
                       </div>
                     </div>
+                  )}
+
+                  {/* Payment status */}
+                  {spent > 0 && (
+                    isPaid ? (
+                      <div className="flex items-center gap-2 rounded-xl px-3 py-2"
+                        style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)' }}>
+                        <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#34D399' }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-semibold" style={{ color: '#34D399' }}>Fatura paga</p>
+                          {lastPayment && (
+                            <p className="text-[10px]" style={{ color: '#475569' }}>
+                              {brl(paidTotal)} em {format(new Date(lastPayment.date + 'T12:00:00'), "dd 'de' MMM", { locale: ptBR })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onPayFatura?.(card, spent)}
+                        className="w-full rounded-xl py-2 text-xs font-bold tracking-wide transition-all"
+                        style={{ background: `${color}15`, color: color, border: `1px solid ${color}30` }}
+                      >
+                        {paidTotal > 0 ? `Pagamento parcial ${brl(paidTotal)} — completar` : `Pagar fatura ${brl(spent)}`}
+                      </button>
+                    )
                   )}
                 </div>
               )

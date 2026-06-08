@@ -12,6 +12,7 @@ import { DailyTip } from '@/components/dashboard/DailyTip'
 import { OnlineIndicator } from '@/components/dashboard/OnlineIndicator'
 import { BudgetsMini } from '@/components/dashboard/BudgetsMini'
 import { CreditCardSummary } from '@/components/dashboard/CreditCardSummary'
+import { PayFaturaModal } from '@/components/dashboard/PayFaturaModal'
 import { FuturePreview } from '@/components/dashboard/FuturePreview'
 import { DollarRate } from '@/components/dashboard/DollarRate'
 import { FinancialAlerts } from '@/components/dashboard/FinancialAlerts'
@@ -362,6 +363,8 @@ export default function DashboardPage() {
   const [loading, setLoading]   = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showNeusaPayment, setShowNeusaPayment] = useState(false)
+  const [payFaturaCard, setPayFaturaCard] = useState<Bank | null>(null)
+  const [payFaturaAmount, setPayFaturaAmount] = useState(0)
   const [prevBalance, setPrevBalance] = useState(0)
   const [detailKind, setDetailKind] = useState<DetailKind | null>(null)
 
@@ -738,7 +741,14 @@ export default function DashboardPage() {
 
           {/* Row 9: Credit cards */}
           <motion.div {...fadeUp(0.27)}>
-            <CreditCardSummary banks={banks} transactions={creditInvoiceTransactions} loading={loading} selectedMonth={currentDate} />
+            <CreditCardSummary
+              banks={banks}
+              transactions={creditInvoiceTransactions}
+              payments={transactions.filter(tx => tx.is_card_payment)}
+              loading={loading}
+              selectedMonth={currentDate}
+              onPayFatura={(card, amount) => { setPayFaturaCard(card); setPayFaturaAmount(amount) }}
+            />
           </motion.div>
 
           {/* Row 10: Goals */}
@@ -750,6 +760,19 @@ export default function DashboardPage() {
       </div>
 
       <AddTransactionModal open={showAddModal} onClose={() => setShowAddModal(false)} onSuccess={fetchData} />
+      {payFaturaCard && profile?.household_id && (
+        <PayFaturaModal
+          open={!!payFaturaCard}
+          onClose={() => setPayFaturaCard(null)}
+          onSuccess={fetchData}
+          card={payFaturaCard}
+          invoiceAmount={payFaturaAmount}
+          invoiceMonth={currentDate}
+          banks={banks}
+          householdId={profile.household_id}
+          userId={profile.id}
+        />
+      )}
       {profile?.household_id && (
         <NeusaPaymentModal
           open={showNeusaPayment}

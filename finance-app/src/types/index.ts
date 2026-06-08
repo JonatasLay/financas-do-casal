@@ -45,6 +45,8 @@ export interface Transaction {
   affects_household_cash?: boolean
   neusa_share_amount?: number | null
   is_neusa_reimbursement?: boolean
+  is_card_payment?: boolean
+  target_bank_id?: string | null
   payment_method?: PaymentMethod
   category?: Category; bank?: Bank; profile?: Profile
 }
