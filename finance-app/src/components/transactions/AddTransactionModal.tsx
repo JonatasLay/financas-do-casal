@@ -75,6 +75,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
   const [isNeusaReimbursement, setIsNeusaReimbursement] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('outro')
   const [showNeusaGuide, setShowNeusaGuide] = useState(false)
+  const [customRecurringMonths, setCustomRecurringMonths] = useState(12)
 
   useEffect(() => {
     if (!open) return
@@ -181,7 +182,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       const maxInstallments = isBoletoExpense ? 60 : 36
       const safeInstallments = canGenerateMonthlyRows ? Math.max(1, Math.min(maxInstallments, installments || 1)) : 1
       const startDate = new Date(`${date}T12:00:00`)
-      const recurringMonths = isRecurring ? 12 - startDate.getMonth() : 1
+      const recurringMonths = isRecurring ? Math.max(1, customRecurringMonths) : 1
       const rowCount = isRecurring && !isEdit ? recurringMonths : safeInstallments
       const recurringGroupId = isRecurring && !isEdit && rowCount > 1 ? crypto.randomUUID() : null
       const divideAmount = isCreditExpense && !isRecurring && safeInstallments > 1
@@ -734,17 +735,39 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
           </div>
 
           {/* Recorrente */}
-          <label className="flex items-center gap-3 p-3.5 rounded-xl cursor-pointer transition-colors"
-            style={{ background: inputBg, border: '1px solid rgba(255,255,255,0.06)' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.07)')}
-            onMouseLeave={e => (e.currentTarget.style.background = inputBg)}>
-            <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)}
-              className="w-4 h-4 accent-indigo-500 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium" style={{ color: textC }}>Lançamento recorrente 🔄</p>
-              <p className="text-xs" style={{ color: '#475569' }}>Repete todo mês no mesmo dia até dezembro</p>
-            </div>
-          </label>
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 p-3.5 rounded-xl cursor-pointer transition-colors"
+              style={{ background: inputBg, border: '1px solid rgba(255,255,255,0.06)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(129,140,248,0.07)')}
+              onMouseLeave={e => (e.currentTarget.style.background = inputBg)}>
+              <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)}
+                className="w-4 h-4 accent-indigo-500 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium" style={{ color: textC }}>Lançamento recorrente 🔄</p>
+                <p className="text-xs" style={{ color: '#475569' }}>Repete todo mes automaticamente</p>
+              </div>
+            </label>
+            {isRecurring && !isEdit && (
+              <div className="flex items-center gap-3 px-3.5 py-3 rounded-xl"
+                style={{ background: 'rgba(129,140,248,0.07)', border: '1px solid rgba(129,140,248,0.18)' }}>
+                <p className="text-xs font-medium flex-1" style={{ color: '#A5B4FC' }}>Quantos meses?</p>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setCustomRecurringMonths(v => Math.max(1, v - 1))}
+                    className="w-7 h-7 rounded-lg text-sm font-bold flex items-center justify-center transition-colors"
+                    style={{ background: 'rgba(129,140,248,0.15)', color: '#818CF8' }}>−</button>
+                  <span className="text-sm font-bold w-8 text-center" style={{ color: '#F1F5F9' }}>{customRecurringMonths}</span>
+                  <button type="button" onClick={() => setCustomRecurringMonths(v => Math.min(60, v + 1))}
+                    className="w-7 h-7 rounded-lg text-sm font-bold flex items-center justify-center transition-colors"
+                    style={{ background: 'rgba(129,140,248,0.15)', color: '#818CF8' }}>+</button>
+                </div>
+                <p className="text-[10px]" style={{ color: '#475569' }}>até {(() => {
+                  const d = new Date(date)
+                  d.setMonth(d.getMonth() + customRecurringMonths - 1)
+                  return d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
+                })()}</p>
+              </div>
+            )}
+          </div>
 
           <div className="h-1" />
         </form>

@@ -203,6 +203,11 @@ function TransactionRow({
                   {PAYMENT_METHOD_LABEL[tx.payment_method]}
                 </span>
               )}
+              {tx.is_card_payment && (
+                <span className="badge" style={{ background: 'rgba(129,140,248,0.10)', border: '1px solid rgba(129,140,248,0.22)', color: '#A5B4FC' }}>
+                  Pag. fatura
+                </span>
+              )}
               {tx.type === 'receita' && tx.is_neusa_reimbursement && (
                 <span className="badge" style={{ background: 'rgba(244,114,182,0.10)', border: '1px solid rgba(244,114,182,0.22)', color: '#F9A8D4' }}>
                   Reembolso da Neuza

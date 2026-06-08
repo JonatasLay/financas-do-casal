@@ -485,7 +485,7 @@ export default function DashboardPage() {
   const isNeusa = isNeusaTransaction
   const visibleCashTransactions = cashTransactions.filter(tx => isCouple(tx) || (tx.type === 'receita' && isNeusaReimbursement(tx)))
   const visibleCreditInvoices = creditInvoiceDueThisMonth
-  const coupleBudgetTransactions = transactions.filter(tx => isCouple(tx) && tx.type !== 'receita')
+  const coupleBudgetTransactions = transactions.filter(tx => isCouple(tx) && tx.type !== 'receita' && !tx.is_card_payment)
 
   const visibleIncomeTransactions = transactions.filter(t => t.type === 'receita' && (isCouple(t) || isNeusaReimbursement(t)))
   const income = monthProjection.realizedOperationalIncome
@@ -541,7 +541,7 @@ export default function DashboardPage() {
     expenses: {
       title: 'Despesas liquidas do casal',
       subtitle: `Gasto bruto ${brl(monthProjection.grossDirectExpenses)} menos coparticipacao da Neuza ${brl(monthProjection.neusaSharedDirectExpenses)}.`,
-      transactions: visibleCashTransactions.filter(t => t.type !== 'receita' && isCouple(t)),
+      transactions: visibleCashTransactions.filter(t => t.type !== 'receita' && isCouple(t) && !t.is_card_payment),
       total: monthProjection.directExpenses,
       amountResolver: getHouseholdNetAmount,
     },
