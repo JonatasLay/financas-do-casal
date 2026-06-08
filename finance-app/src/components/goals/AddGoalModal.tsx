@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { X } from 'lucide-react'
 import { NumericFormat } from 'react-number-format'
@@ -19,7 +19,7 @@ const ICONS  = ['✈️','🏦','💰','🏠','🎓','🚗','💻','📱','🎁'
 const COLORS = ['#6366F1','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#0EA5E9','#F97316']
 
 export function AddGoalModal({ open, onClose, onSuccess, householdId, editGoal }: Props) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [saving, setSaving] = useState(false)
   const isEdit = !!editGoal
 

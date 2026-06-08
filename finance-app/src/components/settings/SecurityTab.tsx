@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { KeyRound, ShieldCheck, ShieldAlert, Trash2 } from 'lucide-react'
@@ -11,7 +11,7 @@ const labelStyle = { color: '#64748B' } as const
 type TotpFactor = { id: string; friendly_name?: string; factor_type?: string; status: string; created_at?: string }
 
 export function SecurityTab() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [factors, setFactors] = useState<TotpFactor[]>([])
   const [aal, setAal] = useState<{ currentLevel?: string | null; nextLevel?: string | null }>({})
   const [loading, setLoading] = useState(true)

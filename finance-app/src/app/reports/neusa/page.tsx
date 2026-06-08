@@ -55,7 +55,7 @@ function SectionRow({
 }
 
 export default function NeusaReportPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const params = useSearchParams()
   const now = new Date()
   const month = Number(params.get('month')) || now.getMonth() + 1

@@ -68,8 +68,8 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
     if (!categoryTotals[key]) categoryTotals[key] = { name: key, icon: tx.category.icon, amount: 0 }
     categoryTotals[key].amount += isCoupleTransaction(tx) ? getHouseholdNetAmount(tx) : Number(tx.amount)
   }
-  const monthlyOverview = Array.from({ length: 12 }, (_, index) => {
-    const monthDate = new Date(selectedDate.getFullYear(), index, 1)
+  const monthlyOverview = Array.from({ length: 13 }, (_, index) => {
+    const monthDate = startOfMonth(subMonths(now, 12 - index))
     const projection = calculateMonthProjection(transactions, banks, monthDate)
     return {
       month: format(monthDate, 'MM'),
@@ -128,7 +128,6 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
     recent_transactions: recentTransactions,
     top_expense_categories: Object.values(categoryTotals).sort((a, b) => b.amount - a.amount).slice(0, 5),
     goals: (goalsRes.data || []).map((goal: any) => ({ name: goal.name, target: Number(goal.target_amount), current: Number(goal.current_amount), icon: goal.icon })),
-    monthly_history: [],
     profiles: profilesRes.data || [{ name: profile.name }],
     savings,
     investments,

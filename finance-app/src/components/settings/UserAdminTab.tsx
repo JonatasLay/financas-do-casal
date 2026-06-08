@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { ShieldCheck, UserPlus, Mail, X, Crown, KeyRound } from 'lucide-react'
@@ -19,7 +19,7 @@ function inviteUrl(email: string) {
 }
 
 export function UserAdminTab({ profile }: { profile: Profile | null }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [members, setMembers] = useState<Profile[]>([])
   const [invites, setInvites] = useState<HouseholdInvite[]>([])
   const [email, setEmail] = useState('')

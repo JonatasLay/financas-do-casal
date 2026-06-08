@@ -4,11 +4,11 @@
 App de controle financeiro para o casal Jonatas e Thuany. Web app responsivo (mobile + desktop), com IA integrada via Claude API, autenticação, sync em tempo real via Supabase e interface bonita/divertida.
 
 ## Stack
-- **Next.js 14** (App Router + TypeScript)
+- **Next.js 15** (App Router + TypeScript)
 - **Supabase** (auth + banco + realtime)
-- **Tailwind CSS** + **shadcn/ui**
+- **Tailwind CSS** (sem shadcn/ui — componentes próprios)
 - **Recharts** (gráficos)
-- **Claude API** (IA financeira)
+- **Claude API** (IA financeira — haiku para dicas, sonnet para chat)
 - **Vercel** (deploy)
 
 ## Setup Inicial

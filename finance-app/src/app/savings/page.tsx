@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { NumericFormat } from 'react-number-format'
@@ -41,7 +41,7 @@ function EmptyState() {
 }
 
 function AddSavingsModal({ open, onClose, onSuccess, editing }: { open: boolean; onClose: () => void; onSuccess: () => void; editing?: Savings | null }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [profile, setProfile] = useState<any>(null)
   const [saving, setSaving] = useState(false)
   const [name, setName]         = useState('')
@@ -177,7 +177,7 @@ function AddSavingsModal({ open, onClose, onSuccess, editing }: { open: boolean;
 }
 
 export default function SavingsPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [profile, setProfile]   = useState<any>(null)
   const [savings, setSavings]   = useState<Savings[]>([])
   const [loading, setLoading]   = useState(true)

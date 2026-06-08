@@ -132,7 +132,7 @@ export interface AIContext {
   }[]
   top_expense_categories: { name: string; amount: number; icon: string }[]
   goals: { name: string; target: number; current: number; icon: string }[]
-  monthly_history: { month: string; income: number; expenses: number }[]
+  monthly_history?: { month: string; income: number; expenses: number }[]
   profiles: { name: string }[]
   savings?: { name: string; type: string; amount: number; rate: number | null }[]
   investments?: { name: string; type: string; invested: number; current: number; pl: number }[]

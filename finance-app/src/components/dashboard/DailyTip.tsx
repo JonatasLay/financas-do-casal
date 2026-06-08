@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Sparkles, RefreshCw } from 'lucide-react'
 
 function renderInlineMarkdown(text: string) {
@@ -53,7 +53,7 @@ export function DailyTip({ month }: { month?: Date }) {
     ? `daily-tip-v2-${month.getFullYear()}-${month.getMonth() + 1}`
     : 'daily-tip-v2'
 
-  const fetchTip = async () => {
+  const fetchTip = useCallback(async () => {
     setLoading(true)
     try {
       const query = month ? `?month=${month.getMonth() + 1}&year=${month.getFullYear()}` : ''
@@ -62,13 +62,13 @@ export function DailyTip({ month }: { month?: Date }) {
       setTip(data.tip)
       sessionStorage.setItem(cacheKey, data.tip)
     } catch { /* silencioso */ } finally { setLoading(false) }
-  }
+  }, [month, cacheKey])
 
   useEffect(() => {
     const cached = sessionStorage.getItem(cacheKey)
     if (cached) setTip(cached)
     else fetchTip()
-  }, [cacheKey])
+  }, [cacheKey, fetchTip])
 
   if (!tip && !loading) return null
 

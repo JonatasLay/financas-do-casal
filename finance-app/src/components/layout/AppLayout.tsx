@@ -7,7 +7,7 @@ import {
   LayoutDashboard, List, Target, Settings, LogOut,
   Plus, PiggyBank, LineChart, Bot,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 
 const NAV_ITEMS = [
@@ -39,7 +39,7 @@ interface AppLayoutProps {
 export function AppLayout({ children, profile, onPlusClick }: AppLayoutProps) {
   const pathname = usePathname()
   const router   = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [loggingOut, setLoggingOut] = useState(false)
 
   const handleLogout = async () => {

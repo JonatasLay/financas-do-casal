@@ -194,7 +194,7 @@ export function StatementImportModal({
   householdId,
   profileId,
 }: StatementImportModalProps) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [rows, setRows] = useState<ImportRow[]>([])
   const [bankId, setBankId] = useState('')
   const [expenseCategoryId, setExpenseCategoryId] = useState('')

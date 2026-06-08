@@ -17,10 +17,11 @@ export async function POST(req: NextRequest) {
     const { messages, mode, purchaseItem, purchasePrice, investmentQuestion } = await req.json()
     const allMessages = normalizeMessages(messages)
     const context = await buildSharedFinancialContext(supabase, user.id)
+    const householdId = await getHouseholdId(supabase, user.id)
     const respond = async (response: string) => {
       const persistenceResults = await Promise.allSettled([
-        saveConversation(supabase, user.id, allMessages, response, context),
-        refreshFinancialMemory(supabase, user.id, allMessages, context.fina_memory || ''),
+        saveConversation(supabase, user.id, householdId, allMessages, response, context),
+        refreshFinancialMemory(supabase, user.id, householdId, allMessages, context.fina_memory || ''),
       ])
       for (const result of persistenceResults) {
         if (result.status === 'rejected') console.error('Fina persistence error:', result.reason)
@@ -28,9 +29,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ response })
     }
     const lastMessage = allMessages.filter(m => m.role === 'user').at(-1)?.content || ''
+    const isConfirmationFlow = /^\s*(sim|pode|confirmo|confirmado|ok|isso|isso mesmo|claro|manda|lanca|lança)\s*[!.]*\s*$/i.test(lastMessage.trim())
     if (!mode || mode === 'chat') {
       const actionText = resolveActionTextFromConversation(allMessages, lastMessage)
-      const action = await tryHandleTransactionAction(supabase, user.id, actionText)
+      const action = await tryHandleTransactionAction(supabase, user.id, actionText, isConfirmationFlow)
       if (action) return respond(action)
     }
 
@@ -95,8 +97,7 @@ async function getHouseholdId(supabase: any, userId: string) {
   return data?.household_id as string | undefined
 }
 
-async function saveConversation(supabase: any, userId: string, messages: AIMessage[], response: string, context: AIContext) {
-  const householdId = await getHouseholdId(supabase, userId)
+async function saveConversation(supabase: any, userId: string, householdId: string | undefined, messages: AIMessage[], response: string, context: AIContext) {
   if (!householdId) return
   const storedMessages = normalizeMessages([...messages, { role: 'assistant', content: response, timestamp: new Date().toISOString() }])
   const snapshot = {
@@ -128,10 +129,8 @@ async function saveConversation(supabase: any, userId: string, messages: AIMessa
   if (error) throw error
 }
 
-async function refreshFinancialMemory(supabase: any, userId: string, messages: AIMessage[], existingMemory: string) {
-  if (!messages.some(message => message.role === 'user')) return
-  const householdId = await getHouseholdId(supabase, userId)
-  if (!householdId) return
+async function refreshFinancialMemory(supabase: any, userId: string, householdId: string | undefined, messages: AIMessage[], existingMemory: string) {
+  if (!householdId || !messages.some(message => message.role === 'user')) return
   const profileSummary = await updateFinancialMemory(existingMemory, messages)
   if (!profileSummary || profileSummary === existingMemory) return
   const { error } = await supabase.from('fina_financial_profiles').upsert({
@@ -230,12 +229,12 @@ function parseStructuredTransaction(raw: string) {
   return { description, amount, date, bank, paymentMethodText, category, type }
 }
 
-async function tryHandleTransactionAction(supabase: any, userId: string, raw: string) {
+async function tryHandleTransactionAction(supabase: any, userId: string, raw: string, isConfirmationFlow: boolean) {
   const text = raw.toLowerCase()
-  const confirmedAction = raw.includes('[CONFIRMAR_LANCAMENTO]')
+  const confirmedAction = isConfirmationFlow && raw.includes('[CONFIRMAR_LANCAMENTO]')
   const wantsDelete = /\b(apague|apaga|remova|remove|exclua|excluir|delete)\b/.test(text)
   const wantsLaunch = /\b(lance|lan[cç]a|lan[cç]ar|registre|adicione|coloque)\b/.test(text)
-  if (wantsDelete) return tryDeleteTransactionFromMessage(supabase, userId, raw)
+  if (wantsDelete) return tryDeleteTransactionFromMessage(supabase, userId, raw, isConfirmationFlow)
   if (!wantsLaunch) return null
 
   const structured = parseStructuredTransaction(raw)
@@ -323,12 +322,12 @@ async function tryHandleTransactionAction(supabase: any, userId: string, raw: st
   return `Lançado com sucesso: ${description}, ${transactionType === 'receita' ? 'receita' : 'despesa'} de ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}${bank ? ` em ${bank.name}` : ''}.`
 }
 
-async function tryDeleteTransactionFromMessage(supabase: any, userId: string, raw: string) {
+async function tryDeleteTransactionFromMessage(supabase: any, userId: string, raw: string, isConfirmationFlow: boolean) {
   const text = raw.toLowerCase()
   const amount = parseMoney(raw)
   const { data: profile } = await supabase.from('profiles').select('household_id').eq('id', userId).single()
   if (!profile?.household_id) return 'Nao encontrei seu perfil para remover o lancamento.'
-  const confirmedId = raw.match(/\[EXCLUIR_ID:([0-9a-f-]+)\]/i)?.[1]
+  const confirmedId = isConfirmationFlow ? raw.match(/\[EXCLUIR_ID:([0-9a-f-]+)\]/i)?.[1] : undefined
 
   if (confirmedId) {
     const { data: confirmedTx } = await supabase

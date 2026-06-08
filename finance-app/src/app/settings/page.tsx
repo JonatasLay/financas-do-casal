@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { NumericFormat } from 'react-number-format'
@@ -62,7 +62,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 // ─── Edit Category Modal ──────────────────────────────────────────────────────
 
 function EditCategoryModal({ cat, onClose, onSaved }: { cat: Category | null; onClose: () => void; onSaved: () => void }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [name, setName]   = useState('')
   const [type, setType]   = useState<Category['type']>('despesa')
   const [icon, setIcon]   = useState('🛒')
@@ -163,7 +163,7 @@ function EditCategoryModal({ cat, onClose, onSaved }: { cat: Category | null; on
 // ─── Edit Bank Modal ──────────────────────────────────────────────────────────
 
 function EditBankModal({ bank, onClose, onSaved }: { bank: Bank | null; onClose: () => void; onSaved: () => void }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [name, setName]           = useState('')
   const [type, setType]           = useState<Bank['type']>('conta')
   const [color, setColor]         = useState('#818CF8')
@@ -296,7 +296,7 @@ function EditBankModal({ bank, onClose, onSaved }: { bank: Bank | null; onClose:
 // ─── Tab 1: Perfil ────────────────────────────────────────────────────────────
 
 function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const fileRef  = useRef<HTMLInputElement>(null)
 
   const [name, setName]           = useState(profile?.name || '')
@@ -508,7 +508,7 @@ function ProfileTab({ profile, onSaved }: { profile: any; onSaved: () => void })
 // ─── Tab 2: Categorias ────────────────────────────────────────────────────────
 
 function CategoriesTab({ categories, householdId, onRefresh }: { categories: Category[]; householdId: string; onRefresh: () => void }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [showForm, setShowForm]         = useState(false)
   const [name, setName]                 = useState('')
   const [type, setType]                 = useState<Category['type']>('despesa')
@@ -658,7 +658,7 @@ function CategoriesTab({ categories, householdId, onRefresh }: { categories: Cat
 // ─── Tab 3: Bancos ────────────────────────────────────────────────────────────
 
 function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdId: string; onRefresh: () => void }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [name, setName]             = useState('')
   const [type, setType]             = useState<Bank['type']>('conta')
   const [color, setColor]           = useState('#818CF8')
@@ -858,7 +858,7 @@ function BanksTab({ banks, householdId, onRefresh }: { banks: Bank[]; householdI
 // ─── Tab 4: Orçamentos ────────────────────────────────────────────────────────
 
 function BudgetsTab({ categories, householdId }: { categories: Category[]; householdId: string }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [currentDate] = useState(new Date())
   const [budgetValues, setBudgetValues] = useState<Record<string, string>>({})
   const [spentByCategory, setSpentByCategory] = useState<Record<string, number>>({})
@@ -1054,7 +1054,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 ]
 
 export default function SettingsPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [activeTab, setActiveTab]   = useState<Tab>('profile')
   const [profile, setProfile]       = useState<any>(null)
   const [categories, setCategories] = useState<Category[]>([])

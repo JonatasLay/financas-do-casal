@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { NumericFormat } from 'react-number-format'
@@ -26,7 +26,7 @@ const INVEST_TYPES = [
 function getType(type: string) { return INVEST_TYPES.find(t => t.value === type) || INVEST_TYPES[6] }
 
 function AddInvestmentModal({ open, onClose, onSuccess, editing }: { open: boolean; onClose: () => void; onSuccess: () => void; editing?: Investment | null }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [profile, setProfile] = useState<any>(null)
   const [saving, setSaving]   = useState(false)
   const [name, setName]             = useState('')
@@ -284,7 +284,7 @@ function AIInvestAdvisor({ investments }: { investments: Investment[] }) {
 }
 
 export default function InvestmentsPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [profile, setProfile]         = useState<any>(null)
   const [investments, setInvestments] = useState<Investment[]>([])
   const [loading, setLoading]         = useState(true)

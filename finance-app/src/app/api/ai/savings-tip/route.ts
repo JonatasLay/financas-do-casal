@@ -10,7 +10,7 @@ export async function GET() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ tip: null }, { status: 401 })
-    return NextResponse.json({ tip: await generateSavingsInsight(await buildFinancialContext(supabase, user.id)) })
+    return NextResponse.json({ tip: generateSavingsInsight(await buildFinancialContext(supabase, user.id)) })
   } catch {
     return NextResponse.json({ tip: 'Nao consegui analisar a reserva agora. Confira os valores cadastrados e tente novamente.' })
   }

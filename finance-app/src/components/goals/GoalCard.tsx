@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ChevronDown, ChevronUp, Plus, Pencil, Trash2, Sparkles } from 'lucide-react'
 import { NumericFormat } from 'react-number-format'
@@ -56,7 +56,7 @@ function Confetti() {
 // ─── ContributeModal ─────────────────────────────────────────────────────────
 
 function ContributeModal({ goal, onClose, onSuccess }: { goal: Goal; onClose: () => void; onSuccess: () => void }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [amountFloat, setAmountFloat] = useState(goal.monthly_contribution > 0 ? goal.monthly_contribution : 0)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
@@ -147,7 +147,7 @@ interface GoalCardProps {
 }
 
 export function GoalCard({ goal, onRefresh, onEdit }: GoalCardProps) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [showContribute, setShowContribute] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [contributions, setContributions] = useState<ContributionRow[]>([])

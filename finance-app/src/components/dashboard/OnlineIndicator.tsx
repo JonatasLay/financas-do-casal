@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface OnlineUser {
@@ -11,7 +11,7 @@ interface OnlineUser {
 
 export function OnlineIndicator({ householdId }: { householdId?: string }) {
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([])
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     if (!householdId) return

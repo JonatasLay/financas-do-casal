@@ -152,7 +152,7 @@ Formato: 3 a 5 bullets curtos, com valores reais. Nao seja longa.`,
   return (response.content[0] as { type: string; text: string }).text
 }
 
-export async function generateSavingsInsight(context: AIContext): Promise<string> {
+export function generateSavingsInsight(context: AIContext): string {
   const savings = context.savings || []
   const totalSaved = savings.reduce((sum, item) => sum + item.amount, 0)
   const weightedRate = totalSaved > 0

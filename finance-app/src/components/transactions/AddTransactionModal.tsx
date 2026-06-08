@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { BankLogo } from '@/components/ui/BankLogo'
 import { X } from 'lucide-react'
@@ -50,7 +50,7 @@ function inferPaymentMethod(bank?: Bank): PaymentMethod {
 }
 
 export function AddTransactionModal({ open, onClose, onSuccess, editTransaction }: Props) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [profile, setProfile] = useState<any>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [banks, setBanks] = useState<Bank[]>([])

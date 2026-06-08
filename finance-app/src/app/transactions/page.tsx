@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { MonthSelector } from '@/components/ui/MonthSelector'
@@ -23,7 +23,7 @@ import {
 } from '@/lib/finance-summary'
 import type { Transaction, Category, Bank, TransactionType, Profile, ResponsibleParty, PaymentMethod } from '@/types'
 
-// â”€â”€â”€ Transaction row with swipe + edit/delete â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Transaction row with swipe ---
 
 const TYPE_COLOR: Record<TransactionType, string> = {
   receita:       '#34D399',
@@ -301,7 +301,7 @@ function TransactionRow({
   )
 }
 
-// â”€â”€â”€ Skeleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Skeleton ---
 
 function RowSkeleton() {
   return (
@@ -317,7 +317,7 @@ function RowSkeleton() {
   )
 }
 
-// â”€â”€â”€ Summary chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Summary chip ---
 
 function SummaryChip({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -331,7 +331,7 @@ function SummaryChip({ label, value, color }: { label: string; value: number; co
   )
 }
 
-// â”€â”€â”€ Filter button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Filter button ---
 
 function FilterBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -345,7 +345,7 @@ function FilterBtn({ active, onClick, children }: { active: boolean; onClick: ()
   )
 }
 
-// â”€â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Main page ---
 
 function TransactionDayGroup({
   date,
@@ -393,7 +393,7 @@ function TransactionDayGroup({
 }
 
 export default function TransactionsPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [currentDate, setCurrentDate] = useState(new Date())
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [creditInvoiceTransactions, setCreditInvoiceTransactions] = useState<Transaction[]>([])
