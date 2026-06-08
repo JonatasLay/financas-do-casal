@@ -105,6 +105,8 @@ CREATE TABLE transactions (
   responsible_party TEXT NOT NULL DEFAULT 'casal' CHECK (responsible_party IN ('casal', 'sogra')),
   is_reimbursed BOOLEAN NOT NULL DEFAULT FALSE,
   affects_household_cash BOOLEAN NOT NULL DEFAULT TRUE,
+  neusa_share_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  is_neusa_reimbursement BOOLEAN NOT NULL DEFAULT FALSE,
   payment_method TEXT NOT NULL DEFAULT 'outro' CHECK (payment_method IN ('credito', 'debito', 'boleto', 'pix', 'dinheiro', 'transferencia', 'outro')),
   month TEXT GENERATED ALWAYS AS (TO_CHAR(date, 'MON')) STORED,
   year INTEGER GENERATED ALWAYS AS (EXTRACT(YEAR FROM date)::INTEGER) STORED,

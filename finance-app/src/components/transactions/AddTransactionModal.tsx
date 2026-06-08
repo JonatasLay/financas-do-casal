@@ -71,6 +71,8 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
   const [responsibleParty, setResponsibleParty] = useState<ResponsibleParty>('casal')
   const [isReimbursed, setIsReimbursed] = useState(false)
   const [affectsHouseholdCash, setAffectsHouseholdCash] = useState(true)
+  const [neusaShareAmount, setNeusaShareAmount] = useState(0)
+  const [isNeusaReimbursement, setIsNeusaReimbursement] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('outro')
 
   useEffect(() => {
@@ -108,6 +110,8 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       setResponsibleParty(editTransaction.responsible_party || 'casal')
       setIsReimbursed(!!editTransaction.is_reimbursed)
       setAffectsHouseholdCash(editTransaction.affects_household_cash !== false)
+      setNeusaShareAmount(Number(editTransaction.neusa_share_amount || 0))
+      setIsNeusaReimbursement(!!editTransaction.is_neusa_reimbursement)
       setPaymentMethod(editTransaction.payment_method || inferPaymentMethod(editTransaction.bank))
     } else {
       reset()
@@ -158,6 +162,8 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
     setResponsibleParty('casal')
     setIsReimbursed(false)
     setAffectsHouseholdCash(true)
+    setNeusaShareAmount(0)
+    setIsNeusaReimbursement(false)
     setPaymentMethod('outro')
   }
 
@@ -181,6 +187,9 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
       const perInstallmentAmount = divideAmount
         ? Number((amountFloat / safeInstallments).toFixed(2))
         : amountFloat
+      const perInstallmentNeusaShare = divideAmount
+        ? Number((Math.max(0, neusaShareAmount) / safeInstallments).toFixed(2))
+        : Math.max(0, neusaShareAmount)
       const today = format(new Date(), 'yyyy-MM-dd')
       const settledAt = status === 'realizado'
         ? editTransaction?.settled_at || (date <= today ? date : today)
@@ -200,6 +209,8 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
         responsible_party: responsibleParty,
         is_reimbursed: responsibleParty === 'sogra' ? isReimbursed : false,
         affects_household_cash: responsibleParty === 'casal' || isCreditExpense ? true : affectsHouseholdCash,
+        neusa_share_amount: responsibleParty === 'casal' && type !== 'receita' ? Math.min(perInstallmentAmount, perInstallmentNeusaShare) : 0,
+        is_neusa_reimbursement: type === 'receita' ? isNeusaReimbursement : false,
         payment_method: paymentMethod,
       }
 
@@ -249,11 +260,15 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
           const amount = divideAmount && installmentNumber === rowCount
             ? Number((amountFloat - perInstallmentAmount * (rowCount - 1)).toFixed(2))
             : perInstallmentAmount
+          const installmentNeusaShare = divideAmount && installmentNumber === rowCount
+            ? Number((Math.max(0, neusaShareAmount) - perInstallmentNeusaShare * (rowCount - 1)).toFixed(2))
+            : perInstallmentNeusaShare
           const installmentLabel = isBoletoExpense ? 'Boleto' : 'Parcela'
 
           return {
             ...payload,
             amount,
+            neusa_share_amount: responsibleParty === 'casal' && type !== 'receita' ? Math.min(amount, installmentNeusaShare) : 0,
             status: isRecurring && index > 0 ? 'agendado' as const : payload.status,
             settled_at: isRecurring && index > 0 ? null : payload.settled_at,
             date: format(addMonths(startDate, index), 'yyyy-MM-dd'),
@@ -599,6 +614,42 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
                 </div>
               </label>
               </div>
+            )}
+
+            {responsibleParty === 'casal' && type !== 'receita' && (
+              <div className="space-y-2 rounded-xl p-3.5"
+                style={{ background: 'rgba(251,146,60,0.06)', border: '1px solid rgba(251,146,60,0.16)' }}>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: '#F1F5F9' }}>Parte da Neuza neste gasto</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>
+                    Ex.: TV de R$ 75 com R$ 25 dela. O caixa sai inteiro, mas o custo liquido do casal fica em R$ 50.
+                  </p>
+                </div>
+                <NumericFormat
+                  value={neusaShareAmount || ''}
+                  onValueChange={value => setNeusaShareAmount(Math.min(amountFloat || 0, value.floatValue || 0))}
+                  thousandSeparator="."
+                  decimalSeparator=","
+                  prefix="R$ "
+                  decimalScale={2}
+                  fixedDecimalScale
+                  allowNegative={false}
+                  className="input"
+                  placeholder="R$ 0,00"
+                />
+              </div>
+            )}
+
+            {type === 'receita' && (
+              <label className="flex items-center gap-3 p-3.5 rounded-xl cursor-pointer"
+                style={{ background: 'rgba(244,114,182,0.07)', border: '1px solid rgba(244,114,182,0.18)' }}>
+                <input type="checkbox" checked={isNeusaReimbursement} onChange={e => setIsNeusaReimbursement(e.target.checked)}
+                  className="w-4 h-4 accent-pink-500 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: '#F1F5F9' }}>Esta receita é reembolso da Neuza</p>
+                  <p className="text-xs" style={{ color: '#64748B' }}>Aparece separada da renda do casal e abate o que ela ainda deve.</p>
+                </div>
+              </label>
             )}
           </div>
 

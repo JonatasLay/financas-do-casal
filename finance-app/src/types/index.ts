@@ -43,6 +43,8 @@ export interface Transaction {
   responsible_party?: ResponsibleParty
   is_reimbursed?: boolean
   affects_household_cash?: boolean
+  neusa_share_amount?: number | null
+  is_neusa_reimbursement?: boolean
   payment_method?: PaymentMethod
   category?: Category; bank?: Bank; profile?: Profile
 }

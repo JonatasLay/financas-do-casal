@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Bank, Transaction } from '@/types'
 import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
+import { getHouseholdNetAmount, getNeusaShareAmount, isNeusaReimbursement } from '@/lib/finance-summary'
 
 interface Props {
   targetMonth: Date
@@ -25,7 +26,10 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
   const bankById = new Map(banks.map(bank => [bank.id, bank]))
 
   const income = transactions
-    .filter(tx => tx.type === 'receita' && isCoupleExpense(tx))
+    .filter(tx => tx.type === 'receita' && isCoupleExpense(tx) && !isNeusaReimbursement(tx))
+    .reduce((sum, tx) => sum + Number(tx.amount), 0)
+  const neusaReimbursementIncome = transactions
+    .filter(tx => tx.type === 'receita' && isNeusaReimbursement(tx))
     .reduce((sum, tx) => sum + Number(tx.amount), 0)
 
   const directTransactions = transactions
@@ -36,11 +40,14 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
 
   const directCoupleExpenses = directTransactions
     .filter(isCoupleExpense)
-    .reduce((sum, tx) => sum + Number(tx.amount), 0)
+    .reduce((sum, tx) => sum + getHouseholdNetAmount(tx), 0)
 
   const directNeusaTotal = directTransactions
     .filter(isNeusaExpense)
     .reduce((sum, tx) => sum + Number(tx.amount), 0)
+  const directSharedNeusaTotal = directTransactions
+    .filter(isCoupleExpense)
+    .reduce((sum, tx) => sum + getNeusaShareAmount(tx), 0)
 
   const cardBills = creditCards.map(card => ({
     card,
@@ -53,8 +60,9 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
     .map(item => ({
       ...item,
       total: item.transactions.reduce((sum, tx) => sum + Number(tx.amount), 0),
-      couple: item.transactions.filter(isCoupleExpense).reduce((sum, tx) => sum + Number(tx.amount), 0),
+      couple: item.transactions.filter(isCoupleExpense).reduce((sum, tx) => sum + getHouseholdNetAmount(tx), 0),
       neusa: item.transactions.filter(isNeusaExpense).reduce((sum, tx) => sum + Number(tx.amount), 0),
+      sharedNeusa: item.transactions.filter(isCoupleExpense).reduce((sum, tx) => sum + getNeusaShareAmount(tx), 0),
       neusaPending: item.transactions
         .filter(tx => isNeusaExpense(tx) && !tx.is_reimbursed)
         .reduce((sum, tx) => sum + Number(tx.amount), 0),
@@ -64,8 +72,10 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
   const creditTotal = cardBills.reduce((sum, item) => sum + item.total, 0)
   const creditCoupleTotal = cardBills.reduce((sum, item) => sum + item.couple, 0)
   const neusaCardTotal = cardBills.reduce((sum, item) => sum + item.neusa, 0)
-  const neusaTotal = neusaCardTotal + directNeusaTotal
+  const neusaSharedCardTotal = cardBills.reduce((sum, item) => sum + item.sharedNeusa, 0)
+  const neusaTotal = neusaCardTotal + directNeusaTotal + directSharedNeusaTotal + neusaSharedCardTotal
   const neusaPending = cardBills.reduce((sum, item) => sum + item.neusaPending, 0)
+  const neusaReceivable = Math.max(0, neusaPending + directSharedNeusaTotal + neusaSharedCardTotal - neusaReimbursementIncome)
   const coupleOutflow = directCoupleExpenses + creditCoupleTotal
   const projectedBalance = income - coupleOutflow
   const monthLabel = format(targetMonth, 'MMMM yyyy', { locale: ptBR })
@@ -130,23 +140,23 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
       {(neusaTotal > 0 || neusaPending > 0) && (
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-xl p-3" style={{ background: 'rgba(244,114,182,0.08)', border: '1px solid rgba(244,114,182,0.18)' }}>
-            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neusa cartão</p>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neuza cartão</p>
             <p className="text-sm font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(neusaCardTotal)}</p>
           </div>
           <div className="rounded-xl p-3" style={{ background: 'rgba(244,114,182,0.06)', border: '1px solid rgba(244,114,182,0.16)' }}>
-            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Despesas diretas</p>
-            <p className="text-sm font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(directNeusaTotal)}</p>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Coparticipação</p>
+            <p className="text-sm font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(directSharedNeusaTotal + neusaSharedCardTotal)}</p>
           </div>
           <div className="rounded-xl p-3" style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.18)' }}>
-            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Total Neusa</p>
-            <p className="text-sm font-bold font-mono-nums" style={{ color: '#FB923C' }}>{brl(neusaTotal)}</p>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Reembolso</p>
+            <p className="text-sm font-bold font-mono-nums" style={{ color: '#FB923C' }}>{brl(neusaReceivable)}</p>
           </div>
         </div>
       )}
 
       {cardBills.length > 0 && (
         <div className="space-y-2">
-          {cardBills.map(({ card, total, couple, neusa, neusaPending }) => (
+          {cardBills.map(({ card, total, couple, neusa, sharedNeusa, neusaPending }) => (
             <div key={card.id} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2"
               style={{ background: `${card.color || '#818CF8'}0D`, border: `1px solid ${card.color || '#818CF8'}22` }}>
               <div className="flex items-center gap-2 min-w-0">
@@ -154,7 +164,7 @@ export function FuturePreview({ targetMonth, transactions, creditTransactions, b
                 <div className="min-w-0">
                   <p className="text-xs font-medium truncate" style={{ color: '#F1F5F9' }}>{card.name}</p>
                   <p className="text-[10px]" style={{ color: '#64748B' }}>
-                    Casal {brl(couple)} | Neusa {brl(neusa)}{neusaPending > 0 ? ` | a receber ${brl(neusaPending)}` : ''}
+                    Casal {brl(couple)} | Neuza {brl(neusa + sharedNeusa)}{neusaPending > 0 ? ` | a receber ${brl(neusaPending + sharedNeusa)}` : ''}
                   </p>
                 </div>
                 <span className="text-[10px] flex-shrink-0" style={{ color: '#64748B' }}>venc. {card.due_day || 10}</span>

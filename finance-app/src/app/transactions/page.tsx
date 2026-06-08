@@ -13,6 +13,7 @@ import { CalendarDays, CheckCircle2, FileUp, HandCoins, Plus, Search, Trash2, Pe
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { getCreditCardPaymentDate } from '@/lib/finance-dates'
+import { getHouseholdNetAmount, getNeusaShareAmount, isNeusaReimbursement } from '@/lib/finance-summary'
 import type { Transaction, Category, Bank, TransactionType, Profile, ResponsibleParty, PaymentMethod } from '@/types'
 
 // ─── Transaction row with swipe + edit/delete ────────────────────────────────
@@ -109,6 +110,7 @@ function TransactionRow({
   const statusLabel = paid && tx.type === 'receita' ? 'Recebido' : STATUS_LABEL[tx.status]
   const isNeusa = tx.responsible_party === 'sogra'
   const reimbursementPending = isNeusa && !tx.is_reimbursed
+  const neusaShare = getNeusaShareAmount(tx)
 
   return (
     <div className="relative overflow-hidden rounded-2xl mb-2">
@@ -191,9 +193,19 @@ function TransactionRow({
                   {PAYMENT_METHOD_LABEL[tx.payment_method]}
                 </span>
               )}
+              {tx.type === 'receita' && tx.is_neusa_reimbursement && (
+                <span className="badge" style={{ background: 'rgba(244,114,182,0.10)', border: '1px solid rgba(244,114,182,0.22)', color: '#F9A8D4' }}>
+                  Reembolso da Neuza
+                </span>
+              )}
               {installmentLabel && (
                 <span className="badge" style={{ background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.25)', color: '#FB923C' }}>
                   {installmentLabel}
+                </span>
+              )}
+              {!isNeusa && neusaShare > 0 && (
+                <span className="badge" style={{ background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.24)', color: '#FB923C' }}>
+                  Parcela Neuza {Number(neusaShare).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </span>
               )}
               {isNeusa && (
@@ -529,20 +541,24 @@ export default function TransactionsPage() {
   const selectedTransactions = transactions.filter(t => (t.responsible_party || 'casal') === filterResponsible)
   const selectedFinancialTransactions = monthFinancialTransactions.filter(t => (t.responsible_party || 'casal') === filterResponsible)
 
-  const income = selectedTransactions.filter(t => t.type === 'receita' && t.status === 'realizado').reduce((s, t) => s + Number(t.amount), 0)
-  const plannedIncome = selectedTransactions.filter(t => t.type === 'receita' && t.status !== 'realizado').reduce((s, t) => s + Number(t.amount), 0)
+  const income = selectedTransactions.filter(t => t.type === 'receita' && t.status === 'realizado' && !isNeusaReimbursement(t)).reduce((s, t) => s + Number(t.amount), 0)
+  const plannedIncome = selectedTransactions.filter(t => t.type === 'receita' && t.status !== 'realizado' && !isNeusaReimbursement(t)).reduce((s, t) => s + Number(t.amount), 0)
+  const neusaReimbursementIncome = transactions.filter(t => t.type === 'receita' && isNeusaReimbursement(t)).reduce((s, t) => s + Number(t.amount), 0)
   const neusaPending = creditInvoiceDueThisMonth
     .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra' && !t.is_reimbursed)
     .reduce((s, t) => s + Number(t.amount), 0)
   const selectedDirectExpenses = cashTransactions
     .filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === filterResponsible)
-    .reduce((s, t) => s + Number(t.amount), 0)
+    .reduce((s, t) => s + (filterResponsible === 'casal' ? getHouseholdNetAmount(t) : Number(t.amount)), 0)
   const selectedCardExpenses = creditInvoiceDueThisMonth
     .filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === filterResponsible)
-    .reduce((s, t) => s + Number(t.amount), 0)
+    .reduce((s, t) => s + (filterResponsible === 'casal' ? getHouseholdNetAmount(t) : Number(t.amount)), 0)
   const selectedExpenses = selectedFinancialTransactions
     .filter(t => t.type !== 'receita')
-    .reduce((s, t) => s + Number(t.amount), 0)
+    .reduce((s, t) => s + (filterResponsible === 'casal' ? getHouseholdNetAmount(t) : Number(t.amount)), 0)
+  const selectedNeusaShare = filterResponsible === 'casal'
+    ? selectedFinancialTransactions.filter(t => t.type !== 'receita').reduce((s, t) => s + getNeusaShareAmount(t), 0)
+    : 0
   const balance  = income + plannedIncome - selectedExpenses
   const summaryCards = filterResponsible === 'sogra'
     ? [
@@ -553,10 +569,11 @@ export default function TransactionsPage() {
       { label: 'Saldo previsto', value: balance, color: balance >= 0 ? '#34D399' : '#F87171' },
     ]
     : [
-      { label: 'Receitas mês', value: income + plannedIncome, color: '#34D399' },
-      { label: 'Desp. diretas', value: selectedDirectExpenses, color: '#818CF8' },
-      { label: 'Fatura cartão', value: selectedCardExpenses, color: '#FBBF24' },
-      { label: 'Total despesas', value: selectedExpenses, color: '#FB923C' },
+      { label: 'Receitas do casal', value: income + plannedIncome, color: '#34D399' },
+      { label: 'Reemb. Neuza', value: neusaReimbursementIncome, color: '#F472B6' },
+      { label: 'Desp. líquidas', value: selectedDirectExpenses, color: '#818CF8' },
+      { label: 'Fatura líquida', value: selectedCardExpenses, color: '#FBBF24' },
+      { label: 'Parte da Neuza', value: selectedNeusaShare + neusaPending, color: '#FB923C' },
       { label: 'Saldo previsto', value: balance, color: balance >= 0 ? '#34D399' : '#F87171' },
     ]
 
@@ -591,7 +608,7 @@ export default function TransactionsPage() {
         <MonthSelector value={currentDate} onChange={d => { setCurrentDate(d); setLoading(true) }} />
 
         {/* Summary */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-2.5">
           {summaryCards.map(card => (
             <SummaryChip key={card.label} label={card.label} value={card.value} color={card.color} />
           ))}

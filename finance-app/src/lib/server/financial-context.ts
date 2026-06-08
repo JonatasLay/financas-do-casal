@@ -1,5 +1,5 @@
 import { addMonths, endOfMonth, endOfYear, format, startOfMonth, startOfYear, subMonths } from 'date-fns'
-import { calculateAccumulatedCashForecast, calculateMonthProjection, isCoupleTransaction } from '@/lib/finance-summary'
+import { calculateAccumulatedCashForecast, calculateMonthProjection, getEffectiveCashDate, getHouseholdNetAmount, isCoupleTransaction } from '@/lib/finance-summary'
 import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
 import type { AIContext, Bank, Transaction } from '@/types'
 
@@ -47,8 +47,9 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
   const monthDirectRows = transactions.filter(tx => {
     const start = format(startOfMonth(selectedDate), 'yyyy-MM-dd')
     const end = format(endOfMonth(selectedDate), 'yyyy-MM-dd')
-    return tx.date >= start
-      && tx.date <= end
+    const effectiveDate = getEffectiveCashDate(tx)
+    return effectiveDate >= start
+      && effectiveDate <= end
       && isCoupleTransaction(tx)
       && bankById.get(tx.bank_id || '')?.type !== 'credito'
   })
@@ -65,7 +66,7 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
     if (tx.type === 'receita' || !tx.category) continue
     const key = tx.category.name
     if (!categoryTotals[key]) categoryTotals[key] = { name: key, icon: tx.category.icon, amount: 0 }
-    categoryTotals[key].amount += Number(tx.amount)
+    categoryTotals[key].amount += isCoupleTransaction(tx) ? getHouseholdNetAmount(tx) : Number(tx.amount)
   }
   const monthlyOverview = Array.from({ length: 12 }, (_, index) => {
     const monthDate = new Date(selectedDate.getFullYear(), index, 1)
@@ -78,7 +79,7 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
       direct_expenses: projection.realizedDirectExpenses,
       planned_direct_expenses: projection.plannedDirectExpenses,
       card_invoice: projection.cardInvoice,
-      projected_balance: projection.result,
+      projected_balance: projection.householdResult,
     }
   })
   const creditCardBills = banks
@@ -93,7 +94,7 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
           const projection = calculateMonthProjection([tx], [bank], selectedDate)
           return projection.cardInvoice > 0
         })
-        .reduce((sum, tx) => sum + Number(tx.amount), 0),
+        .reduce((sum, tx) => sum + getHouseholdNetAmount(tx), 0),
     }))
     .filter(bill => bill.amount > 0)
   const recentTransactions = (recentTxRes.data || [])
@@ -113,10 +114,10 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
   return {
     current_month_income: selected.realizedIncome,
     current_month_expenses: selected.realizedDirectExpenses,
-    current_month_balance: selected.realizedIncome - selected.realizedDirectExpenses,
-    planned_month_income: selected.plannedIncome,
+    current_month_balance: selected.realizedOperationalIncome - selected.realizedDirectExpenses,
+    planned_month_income: selected.plannedOperationalIncome,
     planned_month_expenses: selected.plannedDirectExpenses + selected.cardInvoice,
-    projected_month_balance: selected.result,
+    projected_month_balance: selected.householdResult,
     projected_cash_balance: cashForecast.projectedCashBalance,
     cash_balance: cashForecast.cashBalance,
     bank_balances: bankBalances,
