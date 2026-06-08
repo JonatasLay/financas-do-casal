@@ -248,7 +248,9 @@ function TransactionRow({
                   Reembolsou
                 </button>
               )}
-              {tx.is_recurring && <span className="text-xs">REC</span>}
+              {tx.is_recurring && (
+                <span className="badge badge-cyan">Recorrente</span>
+              )}
             </div>
           </div>
 
