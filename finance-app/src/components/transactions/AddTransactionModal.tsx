@@ -145,7 +145,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
 
   useEffect(() => {
     if (responsibleParty === 'casal' || isCreditExpense) setAffectsHouseholdCash(true)
-    else if (!isEdit && isNeusaDirectExpense) setAffectsHouseholdCash(false)
+    else if (!isEdit && isNeusaDirectExpense) setAffectsHouseholdCash(true) // default: casal pagou
   }, [responsibleParty, isCreditExpense, isEdit, isNeusaDirectExpense])
 
   const reset = () => {
@@ -588,20 +588,23 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
             {responsibleParty === 'sogra' && (
               <div className="space-y-2">
                 {isNeusaDirectExpense && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { value: false, label: 'Somente controle', detail: 'Nao altera o caixa do casal' },
-                      { value: true, label: 'Pago pelo casal', detail: 'Sai de uma conta de voces' },
-                    ].map(item => (
-                      <button key={String(item.value)} type="button" onClick={() => setAffectsHouseholdCash(item.value)}
-                        className="rounded-xl border px-3 py-2.5 text-left"
-                        style={affectsHouseholdCash === item.value
-                          ? { background: 'rgba(244,114,182,0.12)', borderColor: '#F472B6', color: '#F9A8D4' }
-                          : { background: inputBg, borderColor: 'rgba(255,255,255,0.07)', color: '#94A3B8' }}>
-                        <p className="text-xs font-semibold">{item.label}</p>
-                        <p className="text-[10px] mt-0.5 opacity-70">{item.detail}</p>
-                      </button>
-                    ))}
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: '#64748B' }}>Quem pagou esta conta?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: true,  label: 'Casal pagou',   detail: 'Ela deve reembolsar', icon: '💸' },
+                        { value: false, label: 'Ela pagou',     detail: 'So para controle',    icon: '📋' },
+                      ].map(item => (
+                        <button key={String(item.value)} type="button" onClick={() => setAffectsHouseholdCash(item.value)}
+                          className="rounded-xl border-2 px-3 py-2.5 text-left transition-all"
+                          style={affectsHouseholdCash === item.value
+                            ? { background: 'rgba(244,114,182,0.15)', borderColor: '#F472B6', color: '#F9A8D4' }
+                            : { background: inputBg, borderColor: 'rgba(255,255,255,0.07)', color: '#94A3B8' }}>
+                          <p className="text-sm">{item.icon} <span className="font-semibold">{item.label}</span></p>
+                          <p className="text-[10px] mt-0.5 opacity-70">{item.detail}</p>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               <label className="flex items-center gap-3 p-3.5 rounded-xl cursor-pointer"
