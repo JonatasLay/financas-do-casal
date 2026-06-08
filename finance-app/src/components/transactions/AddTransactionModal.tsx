@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { BankLogo } from '@/components/ui/BankLogo'
-import { X } from 'lucide-react'
+import { X, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { NumericFormat } from 'react-number-format'
 import { toast } from 'sonner'
 import { addMonths, format } from 'date-fns'
@@ -74,6 +74,7 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
   const [neusaShareAmount, setNeusaShareAmount] = useState(0)
   const [isNeusaReimbursement, setIsNeusaReimbursement] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('outro')
+  const [showNeusaGuide, setShowNeusaGuide] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -557,7 +558,59 @@ export function AddTransactionModal({ open, onClose, onSuccess, editTransaction 
           {/* Quem lançou */}
           <div className="space-y-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: labelC }}>Responsavel pelo gasto</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: labelC }}>Responsavel pelo gasto</p>
+                <button type="button" onClick={() => setShowNeusaGuide(v => !v)}
+                  className="flex items-center gap-1 text-xs transition-colors"
+                  style={{ color: showNeusaGuide ? '#818CF8' : '#475569' }}>
+                  <HelpCircle className="w-3.5 h-3.5" />
+                  Como lançar?
+                  {showNeusaGuide ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+              </div>
+
+              {showNeusaGuide && (
+                <div className="mb-3 rounded-xl p-4 space-y-3" style={{ background: 'rgba(129,140,248,0.07)', border: '1px solid rgba(129,140,248,0.2)' }}>
+                  <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#818CF8' }}>Guia: como lançar cada caso</p>
+                  <div className="space-y-2.5">
+                    <div className="flex gap-2.5">
+                      <span className="text-base flex-shrink-0">💳</span>
+                      <div>
+                        <p className="text-xs font-semibold" style={{ color: '#F1F5F9' }}>Compra da Neuza no cartão do casal</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>Selecione <b style={{color:'#F9A8D4'}}>Neusa</b> → salve normalmente. Por ser cartão, já entra no reembolso automaticamente.</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2.5">
+                      <span className="text-base flex-shrink-0">📱</span>
+                      <div>
+                        <p className="text-xs font-semibold" style={{ color: '#F1F5F9' }}>Conta que o casal paga por ela (Claro, Recreativa...)</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>Selecione <b style={{color:'#F9A8D4'}}>Neusa</b> → <b style={{color:'#F9A8D4'}}>Casal pagou</b> (padrão). Ela deverá reembolsar. Aparece no relatório dela.</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2.5">
+                      <span className="text-base flex-shrink-0">📋</span>
+                      <div>
+                        <p className="text-xs font-semibold" style={{ color: '#F1F5F9' }}>Conta que ela pagou sozinha (só controle)</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>Selecione <b style={{color:'#F9A8D4'}}>Neusa</b> → <b style={{color:'#94A3B8'}}>Ela pagou</b>. Não entra no reembolso, só para histórico.</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2.5">
+                      <span className="text-base flex-shrink-0">📺</span>
+                      <div>
+                        <p className="text-xs font-semibold" style={{ color: '#F1F5F9' }}>Gasto compartilhado (ex: TV R$ 75, parte dela R$ 25)</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>Selecione <b style={{color:'#818CF8'}}>Casal</b> → preencha "Parte da Neuza" com R$ 25. O caixa sai R$ 75, mas o custo líquido do casal fica em R$ 50.</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2.5">
+                      <span className="text-base flex-shrink-0">💰</span>
+                      <div>
+                        <p className="text-xs font-semibold" style={{ color: '#F1F5F9' }}>Ela mandou o dinheiro (reembolso)</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>Tipo <b style={{color:'#34D399'}}>Receita</b> → marque "Esta receita é reembolso da Neuza". Ou use o botão "Registrar pagamento" no relatório dela.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 {([
                   { value: 'casal', label: 'Casal', detail: 'Jonatas / Thuany', color: '#818CF8' },

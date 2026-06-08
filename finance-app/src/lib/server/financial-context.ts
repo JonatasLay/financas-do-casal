@@ -82,6 +82,20 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
       projected_balance: projection.householdResult,
     }
   })
+  const monthStart = format(startOfMonth(selectedDate), 'yyyy-MM-dd')
+  const monthEnd = format(endOfMonth(selectedDate), 'yyyy-MM-dd')
+  const neusaMonthTx = transactions.filter(tx => tx.date >= monthStart && tx.date <= monthEnd)
+  const neusaExpenses = neusaMonthTx
+    .filter(tx => tx.responsible_party === 'sogra' && tx.affects_household_cash !== false && tx.is_reimbursed !== true && tx.type !== 'receita')
+    .reduce((sum, tx) => sum + Number(tx.amount), 0)
+  const neusaShares = neusaMonthTx
+    .filter(tx => tx.responsible_party === 'casal' && tx.type !== 'receita' && Number(tx.neusa_share_amount) > 0)
+    .reduce((sum, tx) => sum + Number(tx.neusa_share_amount), 0)
+  const neusaReceived = neusaMonthTx
+    .filter(tx => tx.is_neusa_reimbursement === true && tx.type === 'receita' && tx.status === 'realizado')
+    .reduce((sum, tx) => sum + Number(tx.amount), 0)
+  const neusaReceivable = Math.max(0, neusaExpenses + neusaShares - neusaReceived)
+
   const creditCardBills = banks
     .filter(bank => bank.type === 'credito')
     .map(bank => ({
@@ -133,6 +147,7 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
     investments,
     total_patrimony: savings.reduce((sum: number, item: any) => sum + item.amount, 0)
       + investments.reduce((sum: number, item: any) => sum + item.current, 0),
+    neusa_receivable: neusaReceivable,
     fina_memory: finaProfileRes.data?.profile_summary || '',
   }
 }

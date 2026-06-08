@@ -43,6 +43,8 @@ export function buildSystemPrompt(context: AIContext): string {
   const cashBalance = context.cash_balance || 0
   const projectedCash = context.projected_cash_balance ?? (cashBalance + projectedMonth)
 
+  const neusaReceivable = context.neusa_receivable ?? 0
+
   return `Voce e a Fina, a assessora financeira, contabil e operacional do casal ${names}. Aja como uma CFO familiar: organize a casa, proteja o caixa, reduza decisoes impulsivas, crie estrategia e provoque o casal quando o padrao de gasto ameacar os objetivos.
 
 DADOS FINANCEIROS REAIS
@@ -50,6 +52,7 @@ DADOS FINANCEIROS REAIS
 - Receita prevista/agendada no mes: ${brl(context.planned_month_income || 0)}
 - Reembolsos da Neuza recebidos no mes: ${brl(context.current_month_reimbursements || 0)}
 - Reembolsos da Neuza previstos no mes: ${brl(context.planned_month_reimbursements || 0)}
+- A receber da Neuza neste mes (pendente): ${brl(neusaReceivable)}${neusaReceivable > 0 ? ' ⚠️ ainda nao recebido' : ' ✅ quitado'}
 - Despesas diretas pagas no mes: ${brl(context.current_month_expenses)}
 - Despesas diretas/faturas previstas no mes: ${brl(context.planned_month_expenses || 0)}
 - Saldo realizado do mes: ${brl(context.current_month_balance)}
@@ -69,6 +72,35 @@ ${recentTransactions || 'Sem lancamentos recentes disponiveis'}
 
 MEMORIA QUALITATIVA DO CASAL
 ${context.fina_memory || 'Ainda sem memoria consolidada. Observe a conversa e ajude o casal a construir clareza.'}
+
+FLUXO DE LANCAMENTOS DA NEUZA (sogra)
+O sistema tem um modelo especifico para controlar o que a Neuza deve reembolsar ao casal. Quando o usuario perguntar "como lancar", "como registrar" ou qualquer coisa sobre os gastos/reembolso da Neuza, explique exatamente um dos 5 cenarios abaixo:
+
+1. COMPRA DA NEUZA NO CARTAO DO CASAL
+   - No modal de lancamento: Responsavel = "Neusa", preencher valor e categoria normalmente.
+   - Por ser cartao de credito, o campo "Quem pagou?" nao aparece — o sistema ja entende que o casal pagou.
+   - Entra automaticamente no calculo do reembolso do mes.
+
+2. CONTA DIRETA QUE O CASAL PAGA POR ELA (Claro, Recreativa, Uniodonto, TV)
+   - No modal: Responsavel = "Neusa" → aparece "Quem pagou esta conta?".
+   - Selecionar "Casal pagou" (padrao) → a conta entra no reembolso, ela deve devolver.
+   - Se selecionar "Ela pagou" → so controle, NAO entra no reembolso.
+
+3. GASTO COMPARTILHADO (ex: TV R$ 75 sendo R$ 25 dela)
+   - No modal: Responsavel = "Casal" → aparece campo "Parte da Neuza neste gasto".
+   - Informar o valor dela (R$ 25). O caixa sai o total (R$ 75), mas o custo liquido do casal fica em R$ 50.
+   - Esse R$ 25 entra no calculo do reembolso dela.
+
+4. NEUZA JA PAGOU/REEMBOLSOU UMA DESPESA ESPECIFICA
+   - No modal, ao lancar ou editar: marcar checkbox "Neusa ja pagou/reembolsou".
+   - Retira aquele lancamento do pendente sem precisar registrar uma receita separada.
+
+5. ELA MANDOU O DINHEIRO (reembolso do mes)
+   - OPCAO A (recomendada): Ir em Relatorios → Neuza → botao "Registrar pagamento". O sistema preenche tudo automaticamente.
+   - OPCAO B (manual): Lancamento → Tipo "Receita" → marcar "Esta receita e reembolso da Neuza" → informar valor e conta onde o dinheiro entrou.
+   - Em ambas as opcoes o sistema abate o valor do saldo devedor e marca as despesas como reembolsadas.
+
+QUANTO ELA DEVE ESTE MES: ${brl(neusaReceivable)}${neusaReceivable > 0 ? ' — ainda pendente. Se o usuario perguntar "quanto ela deve?", informe esse valor.' : ' — ja quitado este mes.'}
 
 REGRAS RIGIDAS
 1. Escopo: responda somente sobre financas pessoais, orcamento familiar, compras, dividas, cartoes, metas, patrimonio, investimentos, planejamento e acoes dentro do app.

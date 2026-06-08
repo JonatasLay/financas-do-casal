@@ -137,6 +137,7 @@ export interface AIContext {
   savings?: { name: string; type: string; amount: number; rate: number | null }[]
   investments?: { name: string; type: string; invested: number; current: number; pl: number }[]
   total_patrimony?: number
+  neusa_receivable?: number
   fina_memory?: string
 }
 
