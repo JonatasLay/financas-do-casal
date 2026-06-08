@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
@@ -23,8 +23,11 @@ import {
   calculateMonthProjection,
   getEffectiveCashDate,
   getHouseholdNetAmount,
+  getNeusaTrackingAmount,
   getNeusaShareAmount,
+  hasNeusaShare,
   isCoupleTransaction,
+  isNeusaLinkedTransaction,
   isNeusaReimbursement,
   isNeusaTransaction,
 } from '@/lib/finance-summary'
@@ -33,7 +36,7 @@ import type { Transaction, Goal, Category, Budget, Bank } from '@/types'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 18 },
@@ -42,6 +45,9 @@ const fadeUp = (delay = 0) => ({
 })
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+const dedupeTransactionsById = (rows: Transaction[]) =>
+  Array.from(new Map(rows.map(row => [row.id, row])).values())
 
 type DetailKind = 'income' | 'expenses' | 'balance' | 'planned' | 'neusa' | 'future-income' | 'future-couple' | 'future-expenses' | 'future-card'
 
@@ -95,7 +101,7 @@ function DetailModal({ open, title, subtitle, transactions, totalOverride, break
             </div>
           )}
           {transactions.length === 0 ? (
-            <p className="text-sm text-center py-8" style={{ color: '#64748B' }}>Nenhum lançamento neste grupo.</p>
+            <p className="text-sm text-center py-8" style={{ color: '#64748B' }}>Nenhum lancamento neste grupo.</p>
           ) : transactions.map(tx => {
             const displayAmount = resolveAmount(tx)
             const neusaShare = getNeusaShareAmount(tx)
@@ -107,14 +113,14 @@ function DetailModal({ open, title, subtitle, transactions, totalOverride, break
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate" style={{ color: '#F1F5F9' }}>{tx.description}</p>
                   <p className="text-[11px]" style={{ color: '#64748B' }}>
-                    {format(new Date(`${tx.date}T12:00:00`), 'dd/MM/yyyy')} · {tx.status}
-                    {tx.bank?.name ? ` · ${tx.bank.name}` : ''}
-                    {tx.responsible_party === 'sogra' ? ' · Neusa' : ''}
-                    {tx.type === 'receita' && tx.is_neusa_reimbursement ? ' · Reembolso da Neuza' : ''}
+                    {format(new Date(`${tx.date}T12:00:00`), 'dd/MM/yyyy')} | {tx.status}
+                    {tx.bank?.name ? ` | ${tx.bank.name}` : ''}
+                    {tx.responsible_party === 'sogra' ? ' | Neusa' : ''}
+                    {tx.type === 'receita' && tx.is_neusa_reimbursement ? ' | Reembolso da Neuza' : ''}
                   </p>
                   {hasNetAdjustment && (
                     <p className="text-[11px] mt-1" style={{ color: '#FB923C' }}>
-                      Bruto {brl(Number(tx.amount))} · Parte da Neuza {brl(neusaShare)} · LÃ­quido casal {brl(displayAmount)}
+                      Bruto {brl(Number(tx.amount))} | Parte da Neuza {brl(neusaShare)} | Liquido casal {brl(displayAmount)}
                     </p>
                   )}
                 </div>
@@ -137,7 +143,7 @@ function getGreeting() {
   return 'Boa noite'
 }
 
-// â”€â”€â”€ Patrimônio Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ PatrimÃ´nio Card Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 function PatrimonyCard({ householdId, loading: parentLoading }: { householdId: string; loading: boolean }) {
   const supabase = createClient()
@@ -163,9 +169,9 @@ function PatrimonyCard({ householdId, loading: parentLoading }: { householdId: s
   return (
     <div className="grid grid-cols-3 gap-3">
       {[
-        { label: 'Poupança',      value: savings,     color: '#34D399', icon: <PiggyBank className="w-4 h-4" /> },
+        { label: 'Poupanca',      value: savings,     color: '#34D399', icon: <PiggyBank className="w-4 h-4" /> },
         { label: 'Investimentos', value: investments, color: '#FBBF24', icon: <TrendingUp className="w-4 h-4" /> },
-        { label: 'Patrimônio',   value: total,       color: '#818CF8', icon: <Wallet className="w-4 h-4" /> },
+        { label: 'Patrimonio',   value: total,       color: '#818CF8', icon: <Wallet className="w-4 h-4" /> },
       ].map(({ label, value, color, icon }) => (
         <div key={label} className="rounded-2xl p-3.5 flex flex-col gap-2"
           style={{ background: `${color}0D`, border: `1px solid ${color}25` }}>
@@ -183,7 +189,7 @@ function PatrimonyCard({ householdId, loading: parentLoading }: { householdId: s
   )
 }
 
-// â”€â”€â”€ Quick Stats Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Quick Stats Bar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 function QuickStats({ income, expenses, balance, prevBalance, loading }: {
   income: number; expenses: number; balance: number; prevBalance: number; loading: boolean
@@ -196,12 +202,12 @@ function QuickStats({ income, expenses, balance, prevBalance, loading }: {
     <div className="rounded-2xl p-4 space-y-3"
       style={{ background: 'linear-gradient(135deg, rgba(129,140,248,0.08), rgba(244,114,182,0.05))', border: '1px solid rgba(129,140,248,0.18)' }}>
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Saldo do mês</p>
+        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Saldo do mes</p>
         {!loading && prevBalance !== 0 && (
           <div className="flex items-center gap-1">
             {deltaPositive ? <ArrowUpRight className="w-3.5 h-3.5" style={{ color: '#34D399' }} /> : <ArrowDownRight className="w-3.5 h-3.5" style={{ color: '#F87171' }} />}
             <span className="text-xs font-bold" style={{ color: deltaPositive ? '#34D399' : '#F87171' }}>
-              {deltaPositive ? '+' : ''}{balanceDelta.toFixed(1)}% vs mês ant.
+              {deltaPositive ? '+' : ''}{balanceDelta.toFixed(1)}% vs mes ant.
             </span>
           </div>
         )}
@@ -234,10 +240,10 @@ function QuickStats({ income, expenses, balance, prevBalance, loading }: {
   )
 }
 
-function MonthlyCommandCenter({ income, plannedIncome, reimbursementIncome, expenses, plannedCashExpenses, plannedCreditInvoices, balance, projectedBalance, cashBalance, projectedCashBalance, prevBalance, neusaTotal, neusaReceivable, neusaDirectTotal, historical, loading, onOpen }: {
+function MonthlyCommandCenter({ income, plannedIncome, reimbursementIncome, expenses, plannedCashExpenses, plannedCreditInvoices, balance, projectedBalance, cashBalance, projectedCashBalance, prevBalance, neusaTotal, neusaReceivable, historical, loading, onOpen }: {
   income: number; plannedIncome: number; reimbursementIncome: number; expenses: number; plannedCashExpenses: number; plannedCreditInvoices: number
   balance: number; projectedBalance: number; cashBalance: number; projectedCashBalance: number; prevBalance: number
-  neusaTotal: number; neusaReceivable: number; neusaDirectTotal: number; historical: boolean; loading: boolean; onOpen: (kind: DetailKind) => void
+  neusaTotal: number; neusaReceivable: number; historical: boolean; loading: boolean; onOpen: (kind: DetailKind) => void
 }) {
   const balanceDelta = prevBalance !== 0 ? ((projectedBalance - prevBalance) / Math.abs(prevBalance)) * 100 : 0
   const deltaPositive = balanceDelta >= 0
@@ -245,11 +251,11 @@ function MonthlyCommandCenter({ income, plannedIncome, reimbursementIncome, expe
   const directExpenses = expenses + plannedCashExpenses
   const displayedBalance = historical ? projectedBalance : projectedCashBalance
   const cards = [
-    { kind: 'income' as const, label: 'Receitas do casal', value: totalIncome, detail: `${brl(income)} recebido · ${brl(plannedIncome)} previsto`, color: '#34D399' },
-    { kind: 'expenses' as const, label: 'Despesas lÃ­quidas', value: directExpenses, detail: `${brl(expenses)} pago · ${brl(plannedCashExpenses)} previsto`, color: '#F87171' },
-    { kind: 'planned' as const, label: 'Fatura lÃ­quida', value: plannedCreditInvoices, detail: 'descontando parte da Neuza', color: '#FBBF24' },
-    { kind: 'balance' as const, label: historical ? 'Resultado do mês' : 'Caixa acumulado', value: displayedBalance, detail: historical ? 'receitas menos despesas e faturas' : `contas hoje ${brl(cashBalance)} | mês ${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)}`, color: displayedBalance >= 0 ? '#818CF8' : '#F87171' },
-    { kind: 'neusa' as const, label: 'Neuza', value: neusaReceivable, detail: `${brl(neusaTotal)} no mês · ${brl(reimbursementIncome)} reembolsado`, color: '#F9A8D4' },
+    { kind: 'income' as const, label: 'Receitas do casal', value: totalIncome, detail: `${brl(income)} recebido | ${brl(plannedIncome)} previsto`, color: '#34D399' },
+    { kind: 'expenses' as const, label: 'Despesas liquidas', value: directExpenses, detail: `${brl(expenses)} pago | ${brl(plannedCashExpenses)} previsto`, color: '#F87171' },
+    { kind: 'planned' as const, label: 'Fatura liquida', value: plannedCreditInvoices, detail: 'descontando a parte da Neuza', color: '#FBBF24' },
+    { kind: 'balance' as const, label: historical ? 'Resultado do mes' : 'Caixa acumulado', value: displayedBalance, detail: historical ? 'receitas menos despesas e faturas' : `contas hoje ${brl(cashBalance)} | mes ${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)}`, color: displayedBalance >= 0 ? '#818CF8' : '#F87171' },
+    { kind: 'neusa' as const, label: 'Neuza', value: neusaReceivable, detail: `${brl(neusaTotal)} no mes | ${brl(reimbursementIncome)} reembolsado`, color: '#F9A8D4' },
   ]
 
   if (loading) return <div className="skeleton h-48 rounded-2xl" />
@@ -259,8 +265,8 @@ function MonthlyCommandCenter({ income, plannedIncome, reimbursementIncome, expe
       style={{ background: 'linear-gradient(135deg, rgba(129,140,248,0.08), rgba(244,114,182,0.05))', border: '1px solid rgba(129,140,248,0.18)' }}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>{historical ? 'Resultado consolidado do mês' : 'Caixa previsto no fim do mês'}</p>
-          <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>{historical ? 'Receitas menos despesas diretas e faturas do perÃ­odo' : 'Saldo atual das contas + fluxo acumulado até o mês selecionado'}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>{historical ? 'Resultado consolidado do mes' : 'Caixa previsto no fim do mes'}</p>
+          <p className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>{historical ? 'Receitas menos despesas diretas e faturas do periodo' : 'Saldo atual das contas + fluxo acumulado ate o mes selecionado'}</p>
         </div>
         {prevBalance !== 0 && (
           <div className="flex items-center gap-1">
@@ -277,7 +283,7 @@ function MonthlyCommandCenter({ income, plannedIncome, reimbursementIncome, expe
           {displayedBalance >= 0 ? '+' : ''}{brl(displayedBalance)}
         </p>
         <p className="text-xs pb-1" style={{ color: '#64748B' }}>
-          resultado do mês: <span className="font-bold" style={{ color: projectedBalance >= 0 ? '#34D399' : '#F87171' }}>{projectedBalance >= 0 ? '+' : ''}{brl(projectedBalance)}</span>
+          resultado do mes: <span className="font-bold" style={{ color: projectedBalance >= 0 ? '#34D399' : '#F87171' }}>{projectedBalance >= 0 ? '+' : ''}{brl(projectedBalance)}</span>
         </p>
       </div>
 
@@ -327,7 +333,7 @@ function AccountBalancesCard({ banks, loading }: { banks: Bank[]; loading: boole
   )
 }
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Page Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 export default function DashboardPage() {
   const supabase = createClient()
@@ -455,7 +461,12 @@ export default function DashboardPage() {
     if (!bank || bank.type !== 'credito' || tx.type === 'receita' || tx.status !== 'realizado') return false
     return isDateInMonth(getCreditCardPaymentDate(tx.date, bank.due_day, bank.closing_day), currentDate)
   })
-  const monthProjection = calculateMonthProjection([...transactions, ...creditInvoiceTransactions], banks, currentDate)
+  const projectionTransactions = dedupeTransactionsById([
+    ...transactions,
+    ...creditInvoiceTransactions,
+    ...forecastTransactions,
+  ])
+  const monthProjection = calculateMonthProjection(projectionTransactions, banks, currentDate)
   const cashTransactions = transactions.filter(tx => !isCreditTx(tx))
   const isCouple = isCoupleTransaction
   const isNeusa = isNeusaTransaction
@@ -479,18 +490,23 @@ export default function DashboardPage() {
   const isHistoricalMonth = format(startOfMonth(currentDate), 'yyyy-MM-dd') < format(startOfMonth(new Date()), 'yyyy-MM-dd')
   const neusaCardTransactions = creditInvoiceDueThisMonth.filter(isNeusa)
   const neusaDirectTransactions = cashTransactions.filter(t => isNeusa(t) && t.type !== 'receita')
+  const neusaDirectPaidByCoupleTransactions = neusaDirectTransactions.filter(t => t.affects_household_cash !== false)
+  const neusaDirectControlTransactions = neusaDirectTransactions.filter(t => t.affects_household_cash === false)
   const sharedNeusaTransactions = [...cashTransactions, ...creditInvoiceDueThisMonth]
-    .filter(t => isCouple(t) && t.type !== 'receita' && getNeusaShareAmount(t) > 0)
+    .filter(t => isCouple(t) && t.type !== 'receita' && hasNeusaShare(t))
   const neusaReimbursementTransactions = cashTransactions.filter(tx => tx.type === 'receita' && isNeusaReimbursement(tx))
-  const neusaTransactions = [...neusaCardTransactions, ...neusaDirectTransactions, ...sharedNeusaTransactions, ...neusaReimbursementTransactions]
+  const neusaTransactions = [...neusaCardTransactions, ...neusaDirectPaidByCoupleTransactions, ...sharedNeusaTransactions, ...neusaReimbursementTransactions]
   const neusaCardTotal = neusaCardTransactions.reduce((s, t) => s + Number(t.amount), 0)
-  const neusaDirectTotal = neusaDirectTransactions.reduce((s, t) => s + Number(t.amount), 0)
+  const neusaDirectPaidByCoupleTotal = neusaDirectPaidByCoupleTransactions.reduce((s, t) => s + Number(t.amount), 0)
+  const neusaDirectControlTotal = neusaDirectControlTransactions.reduce((s, t) => s + Number(t.amount), 0)
   const neusaSharedCashTotal = cashTransactions.filter(tx => isCouple(tx)).reduce((sum, tx) => sum + getNeusaShareAmount(tx), 0)
   const neusaSharedCardTotal = creditInvoiceDueThisMonth.filter(tx => isCouple(tx)).reduce((sum, tx) => sum + getNeusaShareAmount(tx), 0)
   const neusaSharedTotal = neusaSharedCashTotal + neusaSharedCardTotal
   const neusaReceivedTotal = neusaReimbursementTransactions.reduce((sum, tx) => sum + Number(tx.amount), 0)
-  const neusaTotal = neusaCardTotal + neusaDirectTotal + neusaSharedTotal
-  const neusaReceivableGross = neusaCardTransactions.filter(t => !t.is_reimbursed).reduce((s, t) => s + Number(t.amount), 0) + neusaSharedTotal
+  const neusaTotal = neusaCardTotal + neusaDirectPaidByCoupleTotal + neusaDirectControlTotal + neusaSharedTotal
+  const neusaReceivableGross = neusaCardTransactions.filter(t => !t.is_reimbursed).reduce((s, t) => s + Number(t.amount), 0)
+    + neusaDirectPaidByCoupleTransactions.filter(t => !t.is_reimbursed).reduce((s, t) => s + Number(t.amount), 0)
+    + neusaSharedTotal
   const neusaReceivable = Math.max(0, neusaReceivableGross - neusaReceivedTotal)
   const cardInvoiceTotal = grossCardInvoiceTotal
   const nextPreviewMonth = addMonths(currentDate, 1)
@@ -505,59 +521,60 @@ export default function DashboardPage() {
   const details: Record<DetailKind, { title: string; subtitle: string; transactions: Transaction[]; total?: number; amountResolver?: (tx: Transaction) => number }> = {
     income: {
       title: 'Receitas do casal',
-      subtitle: `Entradas próprias do casal. Reembolso da Neuza (${brl(neusaReimbursementIncome)}) fica separado para não inflar a renda.`,
+      subtitle: `Entradas proprias do casal. Reembolso da Neuza (${brl(neusaReimbursementIncome)}) fica separado para nao inflar a renda.`,
       transactions: visibleIncomeTransactions.filter(tx => !isNeusaReimbursement(tx)),
       total: income + plannedIncome,
     },
     expenses: {
-      title: 'Despesas líquidas do casal',
-      subtitle: `Gasto bruto ${brl(monthProjection.grossDirectExpenses)} menos coparticipação da Neuza ${brl(monthProjection.neusaSharedDirectExpenses)}.`,
+      title: 'Despesas liquidas do casal',
+      subtitle: `Gasto bruto ${brl(monthProjection.grossDirectExpenses)} menos coparticipacao da Neuza ${brl(monthProjection.neusaSharedDirectExpenses)}.`,
       transactions: visibleCashTransactions.filter(t => t.type !== 'receita' && isCouple(t)),
       total: monthProjection.directExpenses,
       amountResolver: getHouseholdNetAmount,
     },
     balance: {
-      title: 'Caixa do mês',
+      title: 'Caixa do mes',
       subtitle: isHistoricalMonth
-        ? 'Caixa real do período, incluindo reembolsos e todas as saídas que passaram pelas contas do casal.'
-        : `Resultado líquido do casal: ${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)}. Caixa previsto: ${brl(projectedCashBalance)}, já incluindo reembolsos recebidos da Neuza (${brl(neusaReimbursementIncome)}).`,
+        ? 'Caixa real do periodo, incluindo reembolsos e todas as saidas que passaram pelas contas do casal.'
+        : `Resultado liquido do casal: ${projectedBalance >= 0 ? '+' : ''}${brl(projectedBalance)}. Caixa previsto: ${brl(projectedCashBalance)}, ja incluindo reembolsos recebidos da Neuza (${brl(neusaReimbursementIncome)}).`,
       transactions: [...visibleIncomeTransactions, ...cashTransactions.filter(t => t.type !== 'receita'), ...visibleCreditInvoices],
       total: monthProjection.cashResult,
     },
     planned: {
-      title: 'Fatura cartão do casal',
-      subtitle: `Fatura total ${brl(grossCardInvoiceTotal)}. Parte líquida do casal ${brl(plannedCreditInvoices)}; parte da Neuza ${brl(neusaCardTotal + neusaSharedCardTotal)}.`,
+      title: 'Fatura cartao do casal',
+      subtitle: `Fatura total ${brl(grossCardInvoiceTotal)}. Parte liquida do casal ${brl(plannedCreditInvoices)}; parte da Neuza ${brl(neusaCardTotal + neusaSharedCardTotal)}.`,
       transactions: visibleCreditInvoices.filter(isCouple),
       total: plannedCreditInvoices,
       amountResolver: getHouseholdNetAmount,
     },
     neusa: {
-      title: 'Neuza no mês',
-      subtitle: `Cartão direto ${brl(neusaCardTotal)} · coparticipação ${brl(neusaSharedTotal)} · reembolso recebido ${brl(neusaReceivedTotal)} · a receber ${brl(neusaReceivable)}`,
+      title: 'Neuza no mes',
+      subtitle: `Cartão direto ${brl(neusaCardTotal)} · contas pagas por vocês ${brl(neusaDirectPaidByCoupleTotal)} · coparticipação ${brl(neusaSharedTotal)} · controle dela ${brl(neusaDirectControlTotal)} · reembolso recebido ${brl(neusaReceivedTotal)} · a receber ${brl(neusaReceivable)}`,
       transactions: neusaTransactions,
       total: neusaReceivable,
+      amountResolver: getNeusaTrackingAmount,
     },
     'future-income': {
-      title: 'Receber na prévia',
-      subtitle: 'Receitas do próximo mês selecionado na prévia',
+      title: 'Receber na previa',
+      subtitle: 'Receitas do proximo mes selecionado na previa',
       transactions: nextMonthTransactions.filter(t => t.type === 'receita'),
     },
     'future-couple': {
-      title: 'Total cartão + despesas diretas',
-      subtitle: 'Despesas diretas e compras de cartão do casal que vencem na prévia',
+      title: 'Total cartao + despesas diretas',
+      subtitle: 'Despesas diretas e compras de cartao do casal que vencem na previa',
       transactions: futureCoupleTransactions.filter(isCouple),
       total: futureCoupleTransactions.filter(isCouple).reduce((sum, tx) => sum + getHouseholdNetAmount(tx), 0),
       amountResolver: getHouseholdNetAmount,
     },
     'future-expenses': {
-      title: 'Despesas diretas da prévia',
-      subtitle: 'Somente despesas do casal sem cartão de crédito',
+      title: 'Despesas diretas da previa',
+      subtitle: 'Somente despesas do casal sem cartao de credito',
       transactions: futureDirectCoupleExpenses,
       total: futureDirectCoupleExpenses.reduce((sum, tx) => sum + getHouseholdNetAmount(tx), 0),
       amountResolver: getHouseholdNetAmount,
     },
     'future-card': {
-      title: 'Fatura cartão da prévia',
+      title: 'Fatura cartao da previa',
       subtitle: 'Compras do casal que caem na fatura prevista',
       transactions: futureCreditInvoices.filter(isCouple),
       total: futureCreditInvoices.filter(isCouple).reduce((sum, tx) => sum + getHouseholdNetAmount(tx), 0),
@@ -614,11 +631,11 @@ export default function DashboardPage() {
 
         <div className="space-y-4 pb-24 md:pb-6">
 
-          {/* â”€â”€ Row 1: Greeting + dollar rate + online indicator â”€â”€ */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 1: Greeting + dollar rate + online indicator Ã¢â€â‚¬Ã¢â€â‚¬ */}
           <motion.div {...fadeUp(0)} className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-lg font-bold" style={{ color: '#F1F5F9' }}>
-                {getGreeting()}, {profile?.name?.split(' ')[0] ?? '...'} ðŸ‘‹
+                {getGreeting()}, {profile?.name?.split(' ')[0] ?? '...'}
               </h1>
               <p className="text-sm" style={{ color: '#64748B' }}>
                 {format(currentDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
@@ -630,7 +647,7 @@ export default function DashboardPage() {
             </div>
           </motion.div>
 
-          {/* â”€â”€ Row 2: Month selector â”€â”€ */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 2: Month selector Ã¢â€â‚¬Ã¢â€â‚¬ */}
           <motion.div {...fadeUp(0.05)}>
             <MonthSelector value={currentDate} onChange={d => { setCurrentDate(d); setLoading(true) }} />
           </motion.div>
@@ -656,7 +673,7 @@ export default function DashboardPage() {
             <AccountBalancesCard banks={banks} loading={loading} />
           </motion.div>
 
-          {/* â”€â”€ Row 3: Main balance card (quick stats) â”€â”€ */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 3: Main balance card (quick stats) Ã¢â€â‚¬Ã¢â€â‚¬ */}
           <motion.div {...fadeUp(0.08)}>
             <MonthlyCommandCenter
               income={income}
@@ -672,14 +689,13 @@ export default function DashboardPage() {
               prevBalance={prevBalance}
               neusaTotal={neusaTotal}
               neusaReceivable={neusaReceivable}
-              neusaDirectTotal={neusaDirectTotal}
               historical={isHistoricalMonth}
               loading={loading}
               onOpen={setDetailKind}
             />
           </motion.div>
 
-          {/* â”€â”€ Row 4.5: Future preview â”€â”€ */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 4.5: Future preview Ã¢â€â‚¬Ã¢â€â‚¬ */}
           <motion.div {...fadeUp(0.135)}>
             <FuturePreview
               targetMonth={addMonths(currentDate, 1)}
@@ -691,30 +707,30 @@ export default function DashboardPage() {
             />
           </motion.div>
 
-          {/* â”€â”€ Row 5: Patrimônio (savings + investments) â”€â”€ */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 5: PatrimÃ´nio (savings + investments) Ã¢â€â‚¬Ã¢â€â‚¬ */}
           {profile?.household_id && (
             <motion.div {...fadeUp(0.15)}>
               <PatrimonyCard householdId={profile.household_id} loading={loading} />
             </motion.div>
           )}
 
-          {/* â”€â”€ Row 7: Charts â”€â”€ */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 7: Charts Ã¢â€â‚¬Ã¢â€â‚¬ */}
           <motion.div {...fadeUp(0.21)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ExpenseChart data={monthlyHistory} loading={loading} />
             <CategoryChart data={byCategory} loading={loading} />
           </motion.div>
 
-          {/* â”€â”€ Row 8: Budgets â”€â”€ */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 8: Budgets Ã¢â€â‚¬Ã¢â€â‚¬ */}
           <motion.div {...fadeUp(0.24)}>
             <BudgetsMini budgets={budgets} transactions={coupleBudgetTransactions} loading={loading} />
           </motion.div>
 
-          {/* â”€â”€ Row 9: Credit cards â”€â”€ */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 9: Credit cards Ã¢â€â‚¬Ã¢â€â‚¬ */}
           <motion.div {...fadeUp(0.27)}>
             <CreditCardSummary banks={banks} transactions={creditInvoiceTransactions} loading={loading} selectedMonth={currentDate} />
           </motion.div>
 
-          {/* â”€â”€ Row 10: Goals â”€â”€ */}
+          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Row 10: Goals Ã¢â€â‚¬Ã¢â€â‚¬ */}
           <motion.div {...fadeUp(0.30)}>
             <GoalsMini goals={goals.slice(0, 3)} loading={loading} />
           </motion.div>

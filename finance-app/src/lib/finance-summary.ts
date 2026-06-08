@@ -32,6 +32,13 @@ export const isNeusaReimbursement = (tx: Transaction) => tx.type === 'receita' &
 export const getEffectiveCashDate = (tx: Transaction) => tx.status === 'realizado' ? (tx.settled_at || tx.date) : tx.date
 export const getNeusaShareAmount = (tx: Transaction) => Math.max(0, Math.min(Number(tx.neusa_share_amount || 0), Number(tx.amount || 0)))
 export const getHouseholdNetAmount = (tx: Transaction) => Math.max(0, Number(tx.amount || 0) - getNeusaShareAmount(tx))
+export const hasNeusaShare = (tx: Transaction) => getNeusaShareAmount(tx) > 0
+export const isNeusaLinkedTransaction = (tx: Transaction) => isNeusaTransaction(tx) || hasNeusaShare(tx) || isNeusaReimbursement(tx)
+export const getNeusaTrackingAmount = (tx: Transaction) => {
+  if (isNeusaReimbursement(tx)) return Number(tx.amount || 0)
+  if (isNeusaTransaction(tx)) return Number(tx.amount || 0)
+  return getNeusaShareAmount(tx)
+}
 
 export function calculateMonthProjection(transactions: Transaction[], banks: Bank[], targetMonth: Date): MonthProjection {
   const bankById = new Map(banks.map(bank => [bank.id, bank]))

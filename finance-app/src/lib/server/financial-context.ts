@@ -112,10 +112,12 @@ export async function buildFinancialContext(supabase: any, userId: string, selec
     }))
 
   return {
-    current_month_income: selected.realizedIncome,
+    current_month_income: selected.realizedOperationalIncome,
     current_month_expenses: selected.realizedDirectExpenses,
     current_month_balance: selected.realizedOperationalIncome - selected.realizedDirectExpenses,
     planned_month_income: selected.plannedOperationalIncome,
+    current_month_reimbursements: selected.realizedReimbursementIncome,
+    planned_month_reimbursements: selected.plannedReimbursementIncome,
     planned_month_expenses: selected.plannedDirectExpenses + selected.cardInvoice,
     projected_month_balance: selected.householdResult,
     projected_cash_balance: cashForecast.projectedCashBalance,

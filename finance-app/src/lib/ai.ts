@@ -48,6 +48,8 @@ export function buildSystemPrompt(context: AIContext): string {
 DADOS FINANCEIROS REAIS
 - Receita recebida este mes: ${brl(context.current_month_income)}
 - Receita prevista/agendada no mes: ${brl(context.planned_month_income || 0)}
+- Reembolsos da Neuza recebidos no mes: ${brl(context.current_month_reimbursements || 0)}
+- Reembolsos da Neuza previstos no mes: ${brl(context.planned_month_reimbursements || 0)}
 - Despesas diretas pagas no mes: ${brl(context.current_month_expenses)}
 - Despesas diretas/faturas previstas no mes: ${brl(context.planned_month_expenses || 0)}
 - Saldo realizado do mes: ${brl(context.current_month_balance)}

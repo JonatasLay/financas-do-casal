@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -13,10 +13,17 @@ import { CalendarDays, CheckCircle2, FileUp, HandCoins, Plus, Search, Trash2, Pe
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { getCreditCardPaymentDate } from '@/lib/finance-dates'
-import { getHouseholdNetAmount, getNeusaShareAmount, isNeusaReimbursement } from '@/lib/finance-summary'
+import {
+  getHouseholdNetAmount,
+  getNeusaShareAmount,
+  getNeusaTrackingAmount,
+  hasNeusaShare,
+  isNeusaLinkedTransaction,
+  isNeusaReimbursement,
+} from '@/lib/finance-summary'
 import type { Transaction, Category, Bank, TransactionType, Profile, ResponsibleParty, PaymentMethod } from '@/types'
 
-// ─── Transaction row with swipe + edit/delete ────────────────────────────────
+// â”€â”€â”€ Transaction row with swipe + edit/delete â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TYPE_COLOR: Record<TransactionType, string> = {
   receita:       '#34D399',
@@ -57,12 +64,14 @@ function getInstallmentLabel(tx: Transaction) {
 
 function TransactionRow({
   tx,
+  displayAmount,
   onDelete,
   onEdit,
   onPay,
   onReimburse,
 }: {
   tx: Transaction
+  displayAmount?: number
   onDelete: () => void
   onEdit: () => void
   onPay: () => void
@@ -103,6 +112,7 @@ function TransactionRow({
 
   const color = TYPE_COLOR[tx.type] ?? '#F87171'
   const sign  = tx.type === 'receita' ? '+' : '-'
+  const shownAmount = displayAmount ?? Number(tx.amount)
   const installmentLabel = getInstallmentLabel(tx)
   const isCredit = tx.bank?.type === 'credito'
   const invoiceDate = isCredit ? getCreditCardPaymentDate(tx.date, tx.bank?.due_day, tx.bank?.closing_day) : null
@@ -150,7 +160,7 @@ function TransactionRow({
           <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{ background: color + '20' }}>
             <span className="text-xl">
-              {tx.category?.icon ?? (tx.type === 'receita' ? '💰' : '💸')}
+              {tx.category?.icon ?? (tx.type === 'receita' ? '$' : '-')}
             </span>
           </div>
 
@@ -161,15 +171,15 @@ function TransactionRow({
               <span className="text-xs" style={{ color: '#475569' }}>
                 {format(new Date(tx.date + 'T12:00:00'), "dd 'de' MMM", { locale: ptBR })}
               </span>
-              {tx.category && <span className="text-xs" style={{ color: '#475569' }}>· {tx.category.name}</span>}
+              {tx.category && <span className="text-xs" style={{ color: '#475569' }}>| {tx.category.name}</span>}
               {tx.bank && (
                 <span className="inline-flex items-center gap-1 text-xs" style={{ color: '#475569' }}>
-                  · <BankLogo bank={tx.bank} size="xs" /> {tx.bank.name}
+                  | <BankLogo bank={tx.bank} size="xs" /> {tx.bank.name}
                 </span>
               )}
               {invoiceDate && (
                 <span className="text-xs" style={{ color: '#FB923C' }}>
-                  · Fatura {format(invoiceDate, 'MMM/yy', { locale: ptBR })}
+                  | Fatura {format(invoiceDate, 'MMM/yy', { locale: ptBR })}
                 </span>
               )}
             </div>
@@ -238,7 +248,7 @@ function TransactionRow({
                   Reembolsou
                 </button>
               )}
-              {tx.is_recurring && <span className="text-xs">🔄</span>}
+              {tx.is_recurring && <span className="text-xs">REC</span>}
             </div>
           </div>
 
@@ -282,7 +292,7 @@ function TransactionRow({
             </div>
             <p className="rounded-xl px-3 py-1.5 text-sm font-bold font-mono-nums"
               style={{ color, background: color + '12', border: `1px solid ${color}24` }}>
-              {sign}{brl(Number(tx.amount))}
+              {sign}{brl(shownAmount)}
             </p>
           </div>
         </div>
@@ -291,7 +301,7 @@ function TransactionRow({
   )
 }
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Skeleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function RowSkeleton() {
   return (
@@ -307,7 +317,7 @@ function RowSkeleton() {
   )
 }
 
-// ─── Summary chip ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Summary chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SummaryChip({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -321,7 +331,7 @@ function SummaryChip({ label, value, color }: { label: string; value: number; co
   )
 }
 
-// ─── Filter button ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Filter button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function FilterBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -335,7 +345,7 @@ function FilterBtn({ active, onClick, children }: { active: boolean; onClick: ()
   )
 }
 
-// ─── Main page ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function TransactionDayGroup({
   date,
@@ -469,7 +479,7 @@ export default function TransactionsPage() {
     const { error } = await query
     if (error) toast.error('Erro ao apagar')
     else {
-      toast.success(deletingTx.recurring_group_id ? 'Lançamento e recorrências futuras apagados' : 'Lançamento apagado')
+      toast.success(deletingTx.recurring_group_id ? 'Lancamento e recorrencias futuras apagados' : 'Lancamento apagado')
       await fetchData()
     }
     setDeletingTx(null)
@@ -503,13 +513,25 @@ export default function TransactionsPage() {
     setEditingTx(null)
   }
 
+  const matchesResponsibleView = (tx: Transaction) => {
+    if (filterResponsible === 'casal') return (tx.responsible_party || 'casal') === 'casal'
+    return isNeusaLinkedTransaction(tx)
+  }
+
+  const getViewAmount = (tx: Transaction) => {
+    if (filterResponsible === 'casal') {
+      return tx.type === 'receita' ? Number(tx.amount) : getHouseholdNetAmount(tx)
+    }
+    return getNeusaTrackingAmount(tx)
+  }
+
   const filtered = transactions.filter(tx => {
     if (search && !tx.description.toLowerCase().includes(search.toLowerCase())) return false
     if (filterType && tx.type !== filterType) return false
     if (filterCategoryId && tx.category_id !== filterCategoryId) return false
     if (filterBankId && tx.bank_id !== filterBankId) return false
     if (filterProfileId && tx.created_by !== filterProfileId) return false
-    if ((tx.responsible_party || 'casal') !== filterResponsible) return false
+    if (!matchesResponsibleView(tx)) return false
     return true
   })
 
@@ -525,7 +547,7 @@ export default function TransactionsPage() {
     .map(([date, items]) => ({
       date,
       items,
-      total: items.reduce((sum, tx) => sum + (tx.type === 'receita' ? Number(tx.amount) : -Number(tx.amount)), 0),
+      total: items.reduce((sum, tx) => sum + (tx.type === 'receita' ? getViewAmount(tx) : -getViewAmount(tx)), 0),
     }))
 
   const bankById = new Map(banks.map(bank => [bank.id, bank]))
@@ -538,42 +560,52 @@ export default function TransactionsPage() {
   })
   const cashTransactions = transactions.filter(tx => !isCreditTx(tx))
   const monthFinancialTransactions = [...cashTransactions, ...creditInvoiceDueThisMonth]
-  const selectedTransactions = transactions.filter(t => (t.responsible_party || 'casal') === filterResponsible)
-  const selectedFinancialTransactions = monthFinancialTransactions.filter(t => (t.responsible_party || 'casal') === filterResponsible)
+  const selectedTransactions = transactions.filter(matchesResponsibleView)
+  const selectedFinancialTransactions = monthFinancialTransactions.filter(matchesResponsibleView)
 
   const income = selectedTransactions.filter(t => t.type === 'receita' && t.status === 'realizado' && !isNeusaReimbursement(t)).reduce((s, t) => s + Number(t.amount), 0)
   const plannedIncome = selectedTransactions.filter(t => t.type === 'receita' && t.status !== 'realizado' && !isNeusaReimbursement(t)).reduce((s, t) => s + Number(t.amount), 0)
   const neusaReimbursementIncome = transactions.filter(t => t.type === 'receita' && isNeusaReimbursement(t)).reduce((s, t) => s + Number(t.amount), 0)
-  const neusaPending = creditInvoiceDueThisMonth
-    .filter(t => t.type !== 'receita' && t.responsible_party === 'sogra' && !t.is_reimbursed)
-    .reduce((s, t) => s + Number(t.amount), 0)
-  const selectedDirectExpenses = cashTransactions
-    .filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === filterResponsible)
-    .reduce((s, t) => s + (filterResponsible === 'casal' ? getHouseholdNetAmount(t) : Number(t.amount)), 0)
-  const selectedCardExpenses = creditInvoiceDueThisMonth
-    .filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === filterResponsible)
-    .reduce((s, t) => s + (filterResponsible === 'casal' ? getHouseholdNetAmount(t) : Number(t.amount)), 0)
+  const neusaDirectPaidByCouple = cashTransactions.filter(t => t.type !== 'receita' && t.responsible_party === 'sogra' && t.affects_household_cash !== false)
+  const neusaDirectControl = cashTransactions.filter(t => t.type !== 'receita' && t.responsible_party === 'sogra' && t.affects_household_cash === false)
+  const neusaSharedCashTransactions = cashTransactions.filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === 'casal' && hasNeusaShare(t))
+  const neusaSharedCardTransactions = creditInvoiceDueThisMonth.filter(t => t.type !== 'receita' && (t.responsible_party || 'casal') === 'casal' && hasNeusaShare(t))
+  const neusaDirectCardTransactions = creditInvoiceDueThisMonth.filter(t => t.type !== 'receita' && t.responsible_party === 'sogra')
+  const neusaDirectPaidByCoupleTotal = neusaDirectPaidByCouple.reduce((s, t) => s + Number(t.amount), 0)
+  const neusaDirectControlTotal = neusaDirectControl.reduce((s, t) => s + Number(t.amount), 0)
+  const neusaSharedCashTotal = neusaSharedCashTransactions.reduce((s, t) => s + getNeusaShareAmount(t), 0)
+  const neusaSharedCardTotal = neusaSharedCardTransactions.reduce((s, t) => s + getNeusaShareAmount(t), 0)
+  const neusaCardTotal = neusaDirectCardTransactions.reduce((s, t) => s + Number(t.amount), 0) + neusaSharedCardTotal
+  const neusaOutOfPocketTotal = neusaDirectPaidByCoupleTotal + neusaSharedCashTotal
+  const neusaPending = neusaDirectCardTransactions.filter(t => !t.is_reimbursed).reduce((s, t) => s + Number(t.amount), 0)
+    + neusaDirectPaidByCouple.filter(t => !t.is_reimbursed).reduce((s, t) => s + Number(t.amount), 0)
+    + neusaSharedCashTotal
+    + neusaSharedCardTotal
+  const selectedDirectExpenses = selectedFinancialTransactions
+    .filter(t => !isCreditTx(t) && t.type !== 'receita')
+    .reduce((s, t) => s + getViewAmount(t), 0)
+  const selectedCardExpenses = selectedFinancialTransactions
+    .filter(t => isCreditTx(t) && t.type !== 'receita')
+    .reduce((s, t) => s + getViewAmount(t), 0)
   const selectedExpenses = selectedFinancialTransactions
     .filter(t => t.type !== 'receita')
-    .reduce((s, t) => s + (filterResponsible === 'casal' ? getHouseholdNetAmount(t) : Number(t.amount)), 0)
-  const selectedNeusaShare = filterResponsible === 'casal'
-    ? selectedFinancialTransactions.filter(t => t.type !== 'receita').reduce((s, t) => s + getNeusaShareAmount(t), 0)
-    : 0
-  const balance  = income + plannedIncome - selectedExpenses
+    .reduce((s, t) => s + getViewAmount(t), 0)
+  const selectedNeusaReceivable = Math.max(0, neusaPending - neusaReimbursementIncome)
+  const balance  = filterResponsible === 'casal' ? income + plannedIncome - selectedExpenses : neusaReimbursementIncome - selectedExpenses
   const summaryCards = filterResponsible === 'sogra'
     ? [
-      { label: 'Receitas Neusa', value: income + plannedIncome, color: '#34D399' },
-      { label: 'Neusa cartão', value: selectedCardExpenses, color: '#FB923C' },
-      { label: 'Despesas diretas', value: selectedDirectExpenses, color: '#F9A8D4' },
-      { label: 'Total Neusa', value: selectedExpenses, color: '#A78BFA' },
-      { label: 'Saldo previsto', value: balance, color: balance >= 0 ? '#34D399' : '#F87171' },
+      { label: 'Reemb. recebidos', value: neusaReimbursementIncome, color: '#34D399' },
+      { label: 'Uso no cartao', value: neusaCardTotal, color: '#FB923C' },
+      { label: 'Pagas por voces', value: neusaOutOfPocketTotal, color: '#22D3EE' },
+      { label: 'Controle dela', value: neusaDirectControlTotal, color: '#A78BFA' },
+      { label: 'A receber', value: selectedNeusaReceivable, color: selectedNeusaReceivable > 0 ? '#FBBF24' : '#34D399' },
     ]
     : [
       { label: 'Receitas do casal', value: income + plannedIncome, color: '#34D399' },
       { label: 'Reemb. Neuza', value: neusaReimbursementIncome, color: '#F472B6' },
-      { label: 'Desp. líquidas', value: selectedDirectExpenses, color: '#818CF8' },
-      { label: 'Fatura líquida', value: selectedCardExpenses, color: '#FBBF24' },
-      { label: 'Parte da Neuza', value: selectedNeusaShare + neusaPending, color: '#FB923C' },
+      { label: 'Desp. liquidas', value: selectedDirectExpenses, color: '#818CF8' },
+      { label: 'Fatura liquida', value: selectedCardExpenses, color: '#FBBF24' },
+      { label: 'Neuza a receber', value: selectedNeusaReceivable, color: '#FB923C' },
       { label: 'Saldo previsto', value: balance, color: balance >= 0 ? '#34D399' : '#F87171' },
     ]
 
@@ -592,7 +624,7 @@ export default function TransactionsPage() {
         {/* Page title */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold" style={{ color: '#F1F5F9' }}>Lançamentos</h1>
+            <h1 className="text-lg font-bold" style={{ color: '#F1F5F9' }}>Lancamentos</h1>
             <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
               {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
             </p>
@@ -633,12 +665,12 @@ export default function TransactionsPage() {
         </div>
         </section>
 
-        {filterResponsible === 'sogra' && neusaPending > 0 && (
+        {filterResponsible === 'sogra' && selectedNeusaReceivable > 0 && (
           <div className="rounded-2xl px-3 py-2 flex items-center justify-between gap-3"
             style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.16)' }}>
-            <span className="text-xs font-medium" style={{ color: '#FBBF24' }}>Neusa no cartão a reembolsar neste mês</span>
+            <span className="text-xs font-medium" style={{ color: '#FBBF24' }}>Neuza ainda precisa devolver ao caixa do casal neste mes</span>
             <span className="text-xs font-bold font-mono-nums" style={{ color: '#FBBF24' }}>
-              R$ {neusaPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              R$ {selectedNeusaReceivable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </span>
           </div>
         )}
@@ -649,7 +681,7 @@ export default function TransactionsPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#475569' }} />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar lançamento..." className="input pl-9" />
+              placeholder="Buscar lancamento..." className="input pl-9" />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2">
                 <X className="w-3.5 h-3.5" style={{ color: '#475569' }} />
@@ -694,10 +726,10 @@ export default function TransactionsPage() {
               <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Tipo</p>
               <div className="flex flex-wrap gap-2">
                 <FilterBtn active={filterType === ''} onClick={() => setFilterType('')}>Todos</FilterBtn>
-                <FilterBtn active={filterType === 'receita'} onClick={() => setFilterType('receita')}>💰 Receita</FilterBtn>
-                <FilterBtn active={filterType === 'despesa'} onClick={() => setFilterType('despesa')}>💸 Despesa</FilterBtn>
-                <FilterBtn active={filterType === 'fatura'} onClick={() => setFilterType('fatura')}>💳 Fatura</FilterBtn>
-                <FilterBtn active={filterType === 'transferencia'} onClick={() => setFilterType('transferencia')}>🔄 Transfer.</FilterBtn>
+                <FilterBtn active={filterType === 'receita'} onClick={() => setFilterType('receita')}>Receita</FilterBtn>
+                <FilterBtn active={filterType === 'despesa'} onClick={() => setFilterType('despesa')}>Despesa</FilterBtn>
+                <FilterBtn active={filterType === 'fatura'} onClick={() => setFilterType('fatura')}>Fatura</FilterBtn>
+                <FilterBtn active={filterType === 'transferencia'} onClick={() => setFilterType('transferencia')}>Transfer.</FilterBtn>
               </div>
             </div>
 
@@ -716,7 +748,7 @@ export default function TransactionsPage() {
 
             {banks.length > 0 && (
               <div>
-                <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Banco / Cartão</p>
+                <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Banco / Cartao</p>
                 <div className="flex flex-wrap gap-2">
                   <FilterBtn active={filterBankId === ''} onClick={() => setFilterBankId('')}>Todos</FilterBtn>
                   {banks.map(bank => (
@@ -733,7 +765,7 @@ export default function TransactionsPage() {
 
             {profiles.length > 1 && (
               <div>
-                <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Quem lançou</p>
+                <p className="text-xs font-medium mb-2" style={{ color: '#64748B' }}>Quem lancou</p>
                 <div className="flex flex-wrap gap-2">
                   <FilterBtn active={filterProfileId === ''} onClick={() => setFilterProfileId('')}>Todos</FilterBtn>
                   {profiles.map(p => (
@@ -752,8 +784,8 @@ export default function TransactionsPage() {
         {!loading && (
           <p className="text-xs font-medium" style={{ color: '#334155' }}>
             {filtered.length === 0
-              ? 'Nenhum lançamento encontrado'
-              : `${filtered.length} lançamento${filtered.length !== 1 ? 's' : ''}`}
+              ? 'Nenhum lancamento encontrado'
+              : `${filtered.length} lancamento${filtered.length !== 1 ? 's' : ''}`}
             {(activeFilterCount > 0 || search) && ' com filtros ativos'}
           </p>
         )}
@@ -764,15 +796,15 @@ export default function TransactionsPage() {
             Array.from({ length: 5 }).map((_, i) => <RowSkeleton key={i} />)
           ) : filtered.length === 0 ? (
             <div className="text-center py-16 space-y-3">
-              <p className="text-4xl">📭</p>
+              <p className="text-4xl">+</p>
               <p className="text-sm font-medium" style={{ color: '#475569' }}>
                 {transactions.length === 0
-                  ? 'Nenhum lançamento neste mês'
+                  ? 'Nenhum lancamento neste mes'
                   : 'Nenhum resultado para os filtros'}
               </p>
               {transactions.length === 0 && (
                 <button onClick={() => setShowModal(true)} className="btn-primary text-sm mt-2">
-                  Fazer primeiro lançamento
+                  Fazer primeiro lancamento
                 </button>
               )}
             </div>
@@ -781,6 +813,7 @@ export default function TransactionsPage() {
               <TransactionDayGroup key={group.date} date={group.date} total={group.total}>
                 {group.items.map(tx => (
                   <TransactionRow key={tx.id} tx={tx}
+                    displayAmount={getViewAmount(tx)}
                     onDelete={() => setDeletingTx(tx)}
                     onEdit={() => handleEdit(tx)}
                     onPay={() => handlePay(tx)}
@@ -796,7 +829,7 @@ export default function TransactionsPage() {
       {/* FAB */}
       <button onClick={() => { setEditingTx(null); setShowModal(true) }}
         className="fixed bottom-24 md:bottom-8 right-5 md:right-8 w-14 h-14 bg-gradient-card rounded-2xl shadow-float flex items-center justify-center transition-transform duration-150 active:scale-95 z-30"
-        aria-label="Adicionar lançamento">
+        aria-label="Adicionar lancamento">
         <Plus className="w-6 h-6 text-white" />
       </button>
 
@@ -821,8 +854,8 @@ export default function TransactionsPage() {
 
       <ConfirmDialog
         open={!!deletingTx}
-        title="Apagar lançamento?"
-        message={deletingTx ? `"${deletingTx.description}" ${deletingTx.recurring_group_id ? 'e as recorrências futuras serão apagados.' : 'será apagado permanentemente.'}` : ''}
+        title="Apagar lancamento?"
+        message={deletingTx ? `"${deletingTx.description}" ${deletingTx.recurring_group_id ? 'e as recorrencias futuras serao apagadas.' : 'sera apagado permanentemente.'}` : ''}
         confirmLabel="Apagar"
         onConfirm={handleDelete}
         onCancel={() => setDeletingTx(null)}

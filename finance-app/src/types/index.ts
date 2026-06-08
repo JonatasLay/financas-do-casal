@@ -102,6 +102,8 @@ export interface AIContext {
   current_month_expenses: number
   current_month_balance: number
   planned_month_income?: number
+  current_month_reimbursements?: number
+  planned_month_reimbursements?: number
   planned_month_expenses?: number
   projected_month_balance?: number
   projected_cash_balance?: number

@@ -1,9 +1,16 @@
 'use client'
 
-import { CreditCard, AlertCircle } from 'lucide-react'
+import { AlertCircle, CreditCard } from 'lucide-react'
 import { BankLogo } from '@/components/ui/BankLogo'
-import type { Bank, Transaction } from '@/types'
 import { getCreditCardPaymentDate, isDateInMonth } from '@/lib/finance-dates'
+import {
+  getHouseholdNetAmount,
+  getNeusaShareAmount,
+  hasNeusaShare,
+  isCoupleTransaction,
+  isNeusaTransaction,
+} from '@/lib/finance-summary'
+import type { Bank, Transaction } from '@/types'
 
 interface Props {
   banks: Bank[]
@@ -12,10 +19,7 @@ interface Props {
   selectedMonth?: Date
 }
 
-const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-
-const isCoupleExpense = (tx: Transaction) => (tx.responsible_party || 'casal') === 'casal'
-const isNeusaExpense = (tx: Transaction) => tx.responsible_party === 'sogra'
+const brl = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 function CardSkeleton() {
   return (
@@ -38,44 +42,52 @@ function CardSkeleton() {
 }
 
 export function CreditCardSummary({ banks, transactions, loading, selectedMonth = new Date() }: Props) {
-  const creditCards = banks.filter(b => b.type === 'credito')
+  const creditCards = banks.filter(bank => bank.type === 'credito')
 
   if (!loading && creditCards.length === 0) return null
 
   const getCardTransactions = (card: Bank) =>
-    transactions
-      .filter(t => {
-        if (t.bank_id !== card.id || t.type === 'receita' || t.status !== 'realizado') return false
-        return isDateInMonth(getCreditCardPaymentDate(t.date, card.due_day, card.closing_day), selectedMonth)
-      })
+    transactions.filter(tx => {
+      if (tx.bank_id !== card.id || tx.type === 'receita' || tx.status !== 'realizado') return false
+      return isDateInMonth(getCreditCardPaymentDate(tx.date, card.due_day, card.closing_day), selectedMonth)
+    })
 
-  const getSpent = (card: Bank, filter?: (tx: Transaction) => boolean) =>
+  const getSpent = (card: Bank, filter?: (tx: Transaction) => boolean, resolver?: (tx: Transaction) => number) =>
     getCardTransactions(card)
       .filter(filter || (() => true))
-      .reduce((s, t) => s + Number(t.amount), 0)
+      .reduce((sum, tx) => sum + (resolver ? resolver(tx) : Number(tx.amount)), 0)
 
-  const totalLimit = creditCards.reduce((s, c) => s + (Number(c.limit_amount) || 0), 0)
-  const totalSpent = creditCards.reduce((s, c) => s + getSpent(c), 0)
-  const totalCoupleSpent = creditCards.reduce((s, c) => s + getSpent(c, isCoupleExpense), 0)
-  const totalNeusaSpent = creditCards.reduce((s, c) => s + getSpent(c, isNeusaExpense), 0)
-  const totalNeusaPending = creditCards.reduce(
-    (s, c) => s + getSpent(c, tx => isNeusaExpense(tx) && !tx.is_reimbursed),
+  const totalLimit = creditCards.reduce((sum, card) => sum + (Number(card.limit_amount) || 0), 0)
+  const totalSpent = creditCards.reduce((sum, card) => sum + getSpent(card), 0)
+  const totalCoupleSpent = creditCards.reduce((sum, card) => sum + getSpent(card, isCoupleTransaction, getHouseholdNetAmount), 0)
+  const totalNeusaSpent = creditCards.reduce(
+    (sum, card) =>
+      sum
+      + getSpent(card, isNeusaTransaction)
+      + getSpent(card, tx => isCoupleTransaction(tx) && hasNeusaShare(tx), getNeusaShareAmount),
     0
   )
-  const usagePct   = totalLimit > 0 ? Math.min(100, (totalSpent / totalLimit) * 100) : 0
-
+  const totalNeusaPending = creditCards.reduce(
+    (sum, card) =>
+      sum
+      + getSpent(card, tx => isNeusaTransaction(tx) && !tx.is_reimbursed)
+      + getSpent(card, tx => isCoupleTransaction(tx) && hasNeusaShare(tx), getNeusaShareAmount),
+    0
+  )
+  const usagePct = totalLimit > 0 ? Math.min(100, (totalSpent / totalLimit) * 100) : 0
   const usageColor = usagePct >= 90 ? '#F87171' : usagePct >= 70 ? '#FBBF24' : '#818CF8'
 
   return (
     <div className="card space-y-4" style={{ border: '1px solid rgba(129,140,248,0.15)' }}>
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #818CF8, #6366F1)', boxShadow: '0 0 16px rgba(129,140,248,0.3)' }}>
+          <div
+            className="w-8 h-8 rounded-xl flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #818CF8, #6366F1)', boxShadow: '0 0 16px rgba(129,140,248,0.3)' }}
+          >
             <CreditCard className="w-4 h-4 text-white" />
           </div>
-          <p className="font-semibold text-sm" style={{ color: '#F1F5F9' }}>Cartões de Crédito</p>
+          <p className="font-semibold text-sm" style={{ color: '#F1F5F9' }}>Cartoes de credito</p>
         </div>
         {totalLimit > 0 && (
           <div className="text-right">
@@ -92,7 +104,7 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
             <p className="text-xs font-bold font-mono-nums" style={{ color: '#C7D2FE' }}>{brl(totalCoupleSpent)}</p>
           </div>
           <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(244,114,182,0.08)', border: '1px solid rgba(244,114,182,0.16)' }}>
-            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neusa</p>
+            <p className="text-[10px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neuza</p>
             <p className="text-xs font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(totalNeusaSpent)}</p>
           </div>
           <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.16)' }}>
@@ -102,12 +114,13 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
         </div>
       )}
 
-      {/* Total usage bar */}
       {totalLimit > 0 && (
         <div>
           <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
-            <div className="h-full rounded-full transition-all duration-700"
-              style={{ width: `${usagePct}%`, background: `linear-gradient(90deg, #818CF8, ${usageColor})` }} />
+            <div
+              className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${usagePct}%`, background: `linear-gradient(90deg, #818CF8, ${usageColor})` }}
+            />
           </div>
           {usagePct >= 80 && (
             <div className="flex items-center gap-1 mt-1.5">
@@ -120,23 +133,25 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
         </div>
       )}
 
-      {/* Per-card list */}
       <div className="space-y-2.5">
         {loading
-          ? [1, 2].map(i => <CardSkeleton key={i} />)
+          ? [1, 2].map(index => <CardSkeleton key={index} />)
           : creditCards.map(card => {
-              const spent   = getSpent(card)
-              const coupleSpent = getSpent(card, isCoupleExpense)
-              const neusaSpent = getSpent(card, isNeusaExpense)
-              const neusaPending = getSpent(card, tx => isNeusaExpense(tx) && !tx.is_reimbursed)
-              const limit   = Number(card.limit_amount) || 0
+              const spent = getSpent(card)
+              const coupleSpent = getSpent(card, isCoupleTransaction, getHouseholdNetAmount)
+              const neusaSpent =
+                getSpent(card, isNeusaTransaction)
+                + getSpent(card, tx => isCoupleTransaction(tx) && hasNeusaShare(tx), getNeusaShareAmount)
+              const neusaPending =
+                getSpent(card, tx => isNeusaTransaction(tx) && !tx.is_reimbursed)
+                + getSpent(card, tx => isCoupleTransaction(tx) && hasNeusaShare(tx), getNeusaShareAmount)
+              const limit = Number(card.limit_amount) || 0
               const cardPct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0
-              const color   = card.color || '#818CF8'
+              const color = card.color || '#818CF8'
               const cardUsageColor = cardPct >= 90 ? '#F87171' : cardPct >= 70 ? '#FBBF24' : color
 
               return (
-                <div key={card.id} className="p-3.5 rounded-2xl space-y-2.5"
-                  style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
+                <div key={card.id} className="p-3.5 rounded-2xl space-y-2.5" style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
                   <div className="flex items-center gap-2.5">
                     <BankLogo bank={card} />
                     <div className="flex-1 min-w-0">
@@ -157,14 +172,14 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
                   {limit > 0 && (
                     <div>
                       <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
-                        <div className="h-full rounded-full transition-all duration-700"
-                          style={{ width: `${cardPct}%`, background: `linear-gradient(90deg, ${color}, ${cardUsageColor})` }} />
+                        <div
+                          className="h-full rounded-full transition-all duration-700"
+                          style={{ width: `${cardPct}%`, background: `linear-gradient(90deg, ${color}, ${cardUsageColor})` }}
+                        />
                       </div>
                       <div className="flex justify-between mt-1">
                         <p className="text-[10px]" style={{ color: '#475569' }}>{cardPct.toFixed(0)}% do limite</p>
-                        {limit > 0 && (
-                          <p className="text-[10px]" style={{ color: '#334155' }}>Disponível: {brl(Math.max(0, limit - spent))}</p>
-                        )}
+                        <p className="text-[10px]" style={{ color: '#334155' }}>Disponivel: {brl(Math.max(0, limit - spent))}</p>
                       </div>
                     </div>
                   )}
@@ -176,7 +191,7 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
                         <p className="text-[11px] font-bold font-mono-nums" style={{ color: '#C7D2FE' }}>{brl(coupleSpent)}</p>
                       </div>
                       <div className="rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                        <p className="text-[9px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neusa</p>
+                        <p className="text-[9px] uppercase tracking-wide" style={{ color: '#64748B' }}>Neuza</p>
                         <p className="text-[11px] font-bold font-mono-nums" style={{ color: '#F9A8D4' }}>{brl(neusaSpent)}</p>
                       </div>
                       <div className="rounded-lg px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.04)' }}>
@@ -187,8 +202,7 @@ export function CreditCardSummary({ banks, transactions, loading, selectedMonth 
                   )}
                 </div>
               )
-            })
-        }
+            })}
       </div>
     </div>
   )

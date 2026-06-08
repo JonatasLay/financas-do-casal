@@ -1,8 +1,9 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { AlertTriangle, BellRing, CalendarClock, ChevronRight, ReceiptText, WalletCards } from 'lucide-react'
 import type { Budget, Transaction } from '@/types'
+import { getHouseholdNetAmount } from '@/lib/finance-summary'
 
 const brl = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -32,7 +33,7 @@ export function FinancialAlerts({
   const spentByCategory: Record<string, number> = {}
   for (const tx of transactions) {
     if (tx.type === 'receita' || !tx.category_id) continue
-    spentByCategory[tx.category_id] = (spentByCategory[tx.category_id] || 0) + Number(tx.amount)
+    spentByCategory[tx.category_id] = (spentByCategory[tx.category_id] || 0) + getHouseholdNetAmount(tx)
   }
 
   const budgetAlerts = budgets
@@ -59,14 +60,14 @@ export function FinancialAlerts({
     alerts.push({
       key: 'negative-balance',
       title: 'Saldo previsto negativo',
-      detail: `O mês está projetando ${brl(projectedBalance)}. Priorize cortar gastos variáveis e confirmar receitas.`,
+      detail: `O mes esta projetando ${brl(projectedBalance)}. Priorize cortar gastos variaveis e confirmar receitas.`,
       tone: 'danger',
       icon: <AlertTriangle className="w-4 h-4" />,
     })
   } else if (projectedBalance > 0) {
     alerts.push({
       key: 'positive-balance',
-      title: 'Sobra prevista no mês',
+      title: 'Sobra prevista no mes',
       detail: `Se tudo se confirmar, sobram ${brl(projectedBalance)}. Separe uma parte antes de gastar.`,
       tone: 'success',
       icon: <WalletCards className="w-4 h-4" />,
@@ -77,10 +78,10 @@ export function FinancialAlerts({
     const monthPositive = projectedBalance >= 0
     alerts.push({
       key: 'cash-pressure',
-      title: monthPositive ? 'Caixa atual apertado, mas mês projeta positivo' : 'Atenção ao caixa atual',
+      title: monthPositive ? 'Caixa atual apertado, mas o mes projeta positivo' : 'Atencao ao caixa atual',
       detail: monthPositive
-        ? `Hoje as contas somam ${brl(cashBalance)}, abaixo das faturas de ${brl(creditInvoiceTotal)}, mas o saldo previsto do mês é ${brl(projectedBalance)}. Confirme as receitas antes de novas compras.`
-        : `Contas somam ${brl(cashBalance)}, faturas previstas somam ${brl(creditInvoiceTotal)} e o mês projeta ${brl(projectedBalance)}.`,
+        ? `Hoje as contas somam ${brl(cashBalance)}, abaixo das faturas de ${brl(creditInvoiceTotal)}, mas o saldo previsto do mes e ${brl(projectedBalance)}. Confirme as receitas antes de novas compras.`
+        : `Contas somam ${brl(cashBalance)}, faturas previstas somam ${brl(creditInvoiceTotal)} e o mes projeta ${brl(projectedBalance)}.`,
       tone: monthPositive ? 'info' : 'warning',
       icon: <CalendarClock className="w-4 h-4" />,
     })
@@ -91,8 +92,8 @@ export function FinancialAlerts({
     const year = selectedMonth.getFullYear()
     alerts.push({
       key: 'neusa',
-      title: 'Reembolso da Neusa no cartão',
-      detail: `${brl(neusaReceivable)} em compras no cartão ainda precisa ser reembolsado. Gere o relatório para enviar.`,
+      title: 'Reembolso pendente da Neuza',
+      detail: `${brl(neusaReceivable)} ainda precisa voltar para o caixa do casal entre cartao, contas pagas por voces e coparticipacoes. Gere o relatorio para enviar.`,
       tone: 'info',
       icon: <ReceiptText className="w-4 h-4" />,
       href: `/reports/neusa?month=${month}&year=${year}`,
@@ -103,7 +104,7 @@ export function FinancialAlerts({
     const over = item.pct >= 1
     alerts.push({
       key: `budget-${item.budget.id}`,
-      title: over ? `Orçamento estourado: ${item.budget.category?.name || 'Categoria'}` : `Orçamento em alerta: ${item.budget.category?.name || 'Categoria'}`,
+      title: over ? `Orcamento estourado: ${item.budget.category?.name || 'Categoria'}` : `Orcamento em alerta: ${item.budget.category?.name || 'Categoria'}`,
       detail: `${brl(item.spent)} usados de ${brl(item.limit)} (${Math.round(item.pct * 100)}%).`,
       tone: over ? 'danger' : 'warning',
       icon: <AlertTriangle className="w-4 h-4" />,
@@ -125,7 +126,7 @@ export function FinancialAlerts({
       style={{ background: 'rgba(17,17,36,0.68)', border: '1px solid rgba(129,140,248,0.16)' }}>
       <div className="flex items-center gap-2">
         <BellRing className="w-4 h-4" style={{ color: '#A5B4FC' }} />
-        <h2 className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>Alertas automáticos</h2>
+        <h2 className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>Alertas automaticos</h2>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
